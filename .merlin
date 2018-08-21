@@ -1,0 +1,4 @@
+S src/**
+B _build/src/**
+
+PKG owl owl-zoo hdf5_caml camlimages.graphics camlimages.all_formats
