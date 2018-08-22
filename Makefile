@@ -1,10 +1,9 @@
-PROGRAMS = eval.ml
-OCAMLPACKS = owl camlimages.all_formats
+PROGRAMS = weights/load_weights.ml eval.ml
+OCAMLPACKS = owl camlimages.all_formats hdf5_caml
 
 SOURCES = $(addprefix src/, $(PROGRAMS))
 
-CURRENT_DIR = $(notdir $(shell pwd))
-OCAMLBUILD  = ocamlbuild -use-ocamlfind $(OCAMLFLAGS)
+OCAMLBUILD = ocamlbuild -use-ocamlfind $(OCAMLFLAGS)
 
 default: all
 
@@ -12,8 +11,7 @@ default: all
 all:	$(SOURCES)
 	$(OCAMLBUILD) -r -pkg "$(OCAMLPACKS)" $(SOURCES:.ml=.native)
 $(SOURCES:.ml=.native): %.native: %.ml
-	$(OCAMLBUILD) -pkg "$(OCAMLPACKS)" $@
+	$(OCAMLBUILD) -r -pkg "$(OCAMLPACKS)" $@
 
 clean::
 	ocamlbuild -clean
-	$(RM) $(wildcard $(addprefix doc/, *.html *.css *.aux *.log))
