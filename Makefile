@@ -16,5 +16,4 @@ $(SOURCES:.ml=.native): %.native: %.ml
 
 clean::
 	ocamlbuild -clean
-	-$(RM) -r $(wildcard *~ *.tar.gz) *.docdir
 	$(RM) $(wildcard $(addprefix doc/, *.html *.css *.aux *.log))

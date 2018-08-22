@@ -5,7 +5,7 @@ open Owl_types
 open Neural 
 open Neural.S
 open Neural.S.Graph
-module AD = Owl.Algodiff
+module AD = Owl.Algodiff.S
 module N = Dense.Ndarray.S
 
 (* *** RESNET101 ***
@@ -100,23 +100,28 @@ let rpn_graph feature_map anchors_per_location anchor_stride =
                  feature_map in
   let x = conv2d [|1; 1; 512; 2 * anchors_per_location|] [|1; 1|]
             ~padding:VALID ~name:"rpn_class_raw" shared in
-  let rpn_class_logits = lambda (fun t -> N.reshape t [|(N.shape t).(0); -1; 2|]) x in
+  (* Other function reshape I could use???? *)
+  let rpn_class_logits = lambda (fun t -> AD.pack_arr
+                                            (N.reshape (AD.unpack_arr t)
+                                               [|(N.shape (AD.unpack_arr t)).(0); -1; 2|])) x in
   let rpn_probs = activation Activation.(Softmax 1)
                     ~name:"rpn_class_xxx" rpn_class_logits in
   let x = conv2d [|1; 1; 512; anchors_per_location * 4|] [|1; 1|] ~padding:VALID
             ~name:"rpn_bbox_pred" shared in
-  let rpn_bbox = lambda (fun t -> N.reshape t [|(N.shape t).(0); -1; 4|]) x in
+  let rpn_bbox = lambda (fun t -> AD.pack_arr
+                                    (N.reshape (AD.unpack_arr t)
+                                       [|(N.shape (AD.unpack_arr t)).(0); -1; 4|])) x in
   [|rpn_class_logits; rpn_probs; rpn_bbox|]
                  
 let build_rpn_model anchor_stride anchors_per_location depth =
   let input_feature_map = input [|256; 256; depth|] ~name:"input_rpn_feature_map" in (* not 256 *)
   let outputs = rpn_graph input_feature_map anchors_per_location anchor_stride in
-  get_network ~name:"rpn_model" (outputs input_feature_map)
+  outputs (* should be model input -> outputs... *)
     
 (* *** MASK R-CNN *** *)
 let mrcnn () =
   let input_image = input ~name:"input_image" C.image_shape in
-  let input_image_meta = input ~name:("input_image_meta") [|C.image_meta_size|] in
+  let input_image_meta = input ~name:"input_image_meta" [|C.image_meta_size|] in
   let anchors = input ~name:"input_anchors" [|256; 4|] in (* 256? How many anchors?*)
   let _, c2, c3, c4, c5 = resnet101 input_image in
   
@@ -141,5 +146,16 @@ let mrcnn () =
   let p5 = conv2d [|3; 3; tdps; tdps|] [|1; 1|] ~padding:SAME ~name:"fpn_p5" p5 in
 
   let p6 = max_pool2d [|1; 1|] [|2; 2|] ~padding:VALID ~name:"fpn_p6" p5 in
+
+  let rpn_feature_maps = [|p2; p3; p4; p5; p6|] in
+  let mrcnn_feature_maps = [|p2; p3; p4; p5|] in
+  
+  let rpn = build_rpn_model C.rpn_anchor_stride (Array.length C.rpn_anchor_ratios) tdps in
+  let output_names = [|"rpn_class_logits"; "rpn_class"; "rpn_bbox"|] in
+  let output = Array.init 3
+                 (fun i -> concatenate 1 ~name:output_names.(i)
+                             (Array.init 5 (fun j -> rpn.(i) rpn_feature_maps.(j)))) in
+  let proposal_count = C.post_nms_rois_inference in
+  
   p2
   
