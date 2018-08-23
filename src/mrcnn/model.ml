@@ -8,6 +8,29 @@ module N = Dense.Ndarray.S
              
 module C = Configuration
 
+(* *** PROPOSAL LAYER *** *)
+(* A box has shape [|y1; x1; y2; x2|] *)
+let apply_box_deltas_graph boxes deltas =
+  let height = N.(get_slice [[]; [2]] boxes - get_slice [[]; [0]] boxes) in
+  let width = N.(get_slice [[]; [3]] boxes - get_slice [[]; [1]] boxes) in
+  let center_y = N.(get_slice [[]; [0]] boxes + (height *$ 0.5)) in
+  let center_x = N.(get_slice [[]; [1]] boxes + (width *$ 0.5)) in
+
+  let center_y = N.(center_y + ((get_slice [[]; [0]] deltas) * height)) in
+  let center_x = N.(center_x + ((get_slice [[]; [1]] deltas) * width)) in
+  let height = N.(height * exp (get_slice [[]; [2]] deltas)) in
+  let width = N.(width * exp (get_slice [[]; [3]] deltas)) in
+
+  let result = N.empty [|(N.shape boxes).(0); 4|] in
+  N.(set_slice [[]; [0]] result (center_y - (height *$ 0.5)));
+  N.(set_slice [[]; [1]] result (center_x - (width *$ 0.5)));
+  N.(set_slice [[]; [2]] result (center_y + (height *$ 0.5)));
+  N.(set_slice [[]; [3]] result (center_x + (width *$ 0.5)));
+  result
+
+(* let clip_boxes_graph boxes window = *)
+  
+  
 (* *** REGION PROPOSAL NETWORK *** 
  * Add different names for each p_i? *)
 let rpn_graph feature_map anchors_per_location anchor_stride =
@@ -68,6 +91,9 @@ let mrcnn () =
   let mrcnn_feature_maps = [|p2; p3; p4; p5|] in
 
   let nb_ratios = Array.length C.rpn_anchor_ratios in
+  
+  (* it should be possible to create this network only once and to reuse it 5 times,
+   * but I can't create a network with multiple outputs in Owl? *)
   let rpns = Array.init 5
                (fun i -> build_rpn_model rpn_feature_maps.(i)
                            C.rpn_anchor_stride nb_ratios tdps) in
@@ -75,8 +101,7 @@ let mrcnn () =
                     (Array.init 5 (fun i -> rpns.(1).(i))) in
   let rpn_bbox = concatenate 1 ~name:"rpn_class"
                     (Array.init 5 (fun i -> rpns.(2).(i))) in
-  let rpn_rois = (proposal_layer C.post_nms_rois_inference C.rpn_nms_threshold
-                   ~name:"ROI") [|rpn_class; rpn_bbox; anchors|] in
-  
-  p2
+  (* let rpn_rois = (proposal_layer C.post_nms_rois_inference C.rpn_nms_threshold
+                   ~name:"ROI") [|rpn_class; rpn_bbox; anchors|] in *)
+  rpn_class, rpn_bbox
   

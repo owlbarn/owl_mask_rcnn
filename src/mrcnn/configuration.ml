@@ -1,3 +1,5 @@
+open Owl
+
 (* Record of variables used to create the network *)
                            
 let backbone_strides = [|4; 8; 16; 32; 64|]
@@ -23,3 +25,4 @@ let post_nms_rois_inference = 1000
 
 let rpn_nms_threshold = 0.7
                     
+let rpn_bbox_std_dev = Dense.Ndarray.S.of_array [|0.1; 0.1; 0.2; 0.2|] [|4|]
