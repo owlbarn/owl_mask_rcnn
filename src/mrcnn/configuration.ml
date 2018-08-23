@@ -20,4 +20,6 @@ let image_meta_size = 1 + 3 + 3 + 4 + 1 + num_classes
 let top_down_pyramid_size = 256
 
 let post_nms_rois_inference = 1000
+
+let rpn_nms_threshold = 0.7
                     
