@@ -1,6 +1,4 @@
 open Owl
-open Owl_types
-open Neural 
 open Neural.S
 open Neural.S.Graph
 module AD = Owl.Algodiff.S
@@ -8,6 +6,10 @@ module N = Dense.Ndarray.S
              
 module C = Configuration
 
+(* *** HANDLE MULTI INPUT/OUTPUT *** *)
+(* let merge node_array =
+  let node_shapes = *)
+  
 (* *** PROPOSAL LAYER *** *)
 (* A box has shape [|y1; x1; y2; x2|] *)
 let apply_box_deltas_graph boxes deltas =
@@ -28,8 +30,33 @@ let apply_box_deltas_graph boxes deltas =
   N.(set_slice [[]; [3]] result (center_x + (width *$ 0.5)));
   result
 
-(* let clip_boxes_graph boxes window = *)
-  
+let clip_boxes_graph boxes window =
+  let edges = N.split [|1; 1; 1; 1|] window in
+  let cols = N.split ~axis:1 [|1; 1; 1; 1|] boxes in
+  (* relies on the broadcast operation *)
+  let y1 = N.max2 (N.min2 cols.(0) edges.(2)) edges.(0) in
+  let x1 = N.max2 (N.min2 cols.(1) edges.(3)) edges.(1) in
+  let y2 = N.max2 (N.min2 cols.(2) edges.(2)) edges.(0) in
+  let x2 = N.max2 (N.min2 cols.(3) edges.(3)) edges.(1) in
+
+  let result = N.empty [|(N.shape boxes).(0); 4|] in
+  N.set_slice [[]; [0]] result y1;
+  N.set_slice [[]; [1]] result x1;
+  N.set_slice [[]; [2]] result y2;
+  N.set_slice [[]; [3]] result x2;
+  result
+
+let proposal_layer proposal_count nms_threshold =
+  (fun inputs ->
+    let scores = N.get_slice [[]; []; [1]] inputs.(0) in
+    let deltas = N.(inputs.(1) * reshape C.rpn_bbox_std_dev [|1; 1; 4|]) in
+    let anchors = inputs.(2) in
+    
+    let pre_nms_limit = min 6000 (N.shape anchors).(1) in
+    let ix = N.top scores pre_nms_limit in
+    ix (* TODO *)
+  )
+
   
 (* *** REGION PROPOSAL NETWORK *** 
  * Add different names for each p_i? *)
