@@ -54,7 +54,24 @@ let proposal_layer proposal_count nms_threshold =
     
     let pre_nms_limit = min 6000 (N.shape anchors).(1) in
     let ix = N.top scores pre_nms_limit in
-    ix (* TODO *)
+    let scores = N.init [|1; pre_nms_limit|] (fun i -> N.get scores (ix.(i))) in
+    let deltas = N.init_nd [|1; pre_nms_limit; 4|]
+                   (fun i -> N.get deltas [|1; ix.(i.(1)).(1); i.(2)|]) in
+    let pre_nms_anchors = N.init_nd [|1; pre_nms_limit; 4|]
+                            (fun i -> N.get anchors [|1; ix.(i.(1)).(1); i.(2)|]) in
+    (* check that and factorise *)
+
+    let boxes = N.empty [|1; pre_nms_limit; 4|] in
+    N.iteri_slice ~axis:1
+      (fun i t -> let box = apply_box_deltas_graph t (N.get_slice [[];[i];[]] deltas) in
+                  N.set_slice [[];[i];[]] boxes box) pre_nms_anchors;
+    let window = N.of_array [|0.; 0.; 1.; 1.|] [|4|] in
+    N.iteri_slice ~axis:1
+      (fun i t -> N.set_slice [[];[i];[]] boxes (clip_boxes_graph t window)) boxes;
+
+    (* TODO: implement non maximum suppression to select the boxes !!! *)
+    
+    boxes
   )
 
   
