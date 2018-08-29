@@ -6,10 +6,9 @@ module N = Dense.Ndarray.S
              
 module C = Configuration
 
-(* *** HANDLE MULTI INPUT/OUTPUT *** *)
-(* let merge node_array =
-  let node_shapes = *)
-  
+let parse_image_meta_graph image =
+  ()
+
 (* *** PROPOSAL LAYER *** *)
 (* A box has shape [|y1; x1; y2; x2|] *)
 let apply_box_deltas_graph boxes deltas =
@@ -74,6 +73,38 @@ let proposal_layer proposal_count nms_threshold =
     boxes
   )
 
+
+(* *** ROIAlign Layer *** *)
+    
+let pyramid_roi_align pool_shape =
+  (fun inputs ->
+    let boxes = inputs.(0) in
+    let image_meta = inputs.(1) in
+    let feature_maps = Array.sub inputs 2 4 in
+
+    let boxes = N.split ~axis:2 [|4|] boxes in (* check that *)
+    let y1, x1, y2, x2 = boxes.(0), boxes.(1), boxes.(2), boxes.(3) in
+    let h = N.(y2 - y1)
+    and w = N.(x2 - x1) in
+    let image_shape = parse_image_meta_graph(image_meta).image_shape.(0) in
+    let image_area = image_shape.(0) *. image_shape.(1) in
+    let roi_level = N.(log2 (sqrt (h * w) /$ (224. /. image_area))) in
+    let roi_level = N.(min2 5. (max2 2. (roi_level +$ 4.))) in
+    let roi_level = N.squeeze ~axis:[|2|] roi_level in
+
+    let zero = N.zeros [|1|] in
+    let pooled = Array.create 4 zero in
+    let box_to_level = Array.create 4 zero in
+    for level = 2 to 5 do
+      (); (* implement bilinear crop and resize. *)
+    done;
+
+    let pooled = N.concatenate ~axis:0 pooled in
+    let box_to_level = N.concatenate ~axis:0 box_to_level in
+    (* TODO *)
+    pooled
+  )
+
   
 (* *** REGION PROPOSAL NETWORK *** 
  * Add different names for each p_i? *)
@@ -83,7 +114,7 @@ let rpn_graph feature_map anchors_per_location anchor_stride =
                  feature_map in
   let x = conv2d [|1; 1; 512; 2 * anchors_per_location|] [|1; 1|]
             ~padding:VALID ~name:"rpn_class_raw" shared in
-  (* Other function reshape I could use???? *)
+  (* Other function reshape I could use???? See Reshape Neuron *)
   let rpn_class_logits = lambda (fun t -> AD.pack_arr
                                             (N.reshape (AD.unpack_arr t)
                                                [|(N.shape (AD.unpack_arr t)).(0); -1; 2|])) x in
@@ -101,6 +132,16 @@ let rpn_graph feature_map anchors_per_location anchor_stride =
 let build_rpn_model input_map anchor_stride anchors_per_location depth =
   let outputs = rpn_graph input_map anchors_per_location anchor_stride in
   outputs (* should be model input -> outputs... *)
+
+
+(* *** Feature Pyramid Network *** *)
+(* TODO: need TimeDistributed and PyramidROIAlign *)
+let fpn_classifier_graph rois feature_maps image_meta
+      pool_size num_classes fc_layers_size =
+  ()
+
+let build_fpn_mask_graph rois feature_maps image_meta pool_size num_classes =
+  ()
     
 (* *** MASK R-CNN *** *)
 let mrcnn () =
