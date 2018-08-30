@@ -1,16 +1,16 @@
 open Owl
 open Neural.S
 open Neural.S.Graph
-module AD = Owl.Algodiff.S
+open Neural.S.Algodiff
 module N = Dense.Ndarray.S
-             
+
 module C = Configuration
 
 let parse_image_meta_graph image =
   ()
 
 (* *** PROPOSAL LAYER *** *)
-(* A box has shape [|y1; x1; y2; x2|] *)
+(* A box has given by [|y1; x1; y2; x2|] *)
 let apply_box_deltas_graph boxes deltas =
   let height = N.(get_slice [[]; [2]] boxes - get_slice [[]; [0]] boxes) in
   let width = N.(get_slice [[]; [3]] boxes - get_slice [[]; [1]] boxes) in
@@ -75,7 +75,7 @@ let proposal_layer proposal_count nms_threshold =
 
 
 (* *** ROIAlign Layer *** *)
-    
+
 let pyramid_roi_align pool_shape =
   (fun inputs ->
     let boxes = inputs.(0) in
@@ -93,8 +93,8 @@ let pyramid_roi_align pool_shape =
     let roi_level = N.squeeze ~axis:[|2|] roi_level in
 
     let zero = N.zeros [|1|] in
-    let pooled = Array.create 4 zero in
-    let box_to_level = Array.create 4 zero in
+    let pooled = Array.make 4 zero in
+    let box_to_level = Array.make 4 zero in
     for level = 2 to 5 do
       (); (* implement bilinear crop and resize. *)
     done;
@@ -114,17 +114,12 @@ let rpn_graph feature_map anchors_per_location anchor_stride =
                  feature_map in
   let x = conv2d [|1; 1; 512; 2 * anchors_per_location|] [|1; 1|]
             ~padding:VALID ~name:"rpn_class_raw" shared in
-  (* Other function reshape I could use???? See Reshape Neuron *)
-  let rpn_class_logits = lambda (fun t -> AD.pack_arr
-                                            (N.reshape (AD.unpack_arr t)
-                                               [|(N.shape (AD.unpack_arr t)).(0); -1; 2|])) x in
+  let rpn_class_logits = reshape [|512; -1; 2|] x in (* check the 512 *)
   let rpn_probs = activation Activation.(Softmax 1)
                     ~name:"rpn_class_xxx" rpn_class_logits in
   let x = conv2d [|1; 1; 512; anchors_per_location * 4|] [|1; 1|] ~padding:VALID
             ~name:"rpn_bbox_pred" shared in
-  let rpn_bbox = lambda (fun t -> AD.pack_arr
-                                    (N.reshape (AD.unpack_arr t)
-                                       [|(N.shape (AD.unpack_arr t)).(0); -1; 4|])) x in
+  let rpn_bbox = reshape [|512; -1; 4|] x in (* check that 512 *)
   [|rpn_class_logits; rpn_probs; rpn_bbox|] (* rpn_class_logits might be useless for
                                              * inference *)
 
@@ -138,10 +133,50 @@ let build_rpn_model input_map anchor_stride anchors_per_location depth =
 (* TODO: need TimeDistributed and PyramidROIAlign *)
 let fpn_classifier_graph rois feature_maps image_meta
       pool_size num_classes fc_layers_size =
-  ()
+  let x =
+    lambda [|1000; pool_size; pool_size; 256|] (pyramid_roi_align [|pool_size; pool_size|])
+      ([|rois; image_meta|] @ feature_maps) ~name:"roi_align_classifier"
+    |> conv2d [|pool_size; pool_size; 256; fc_layers_size|] [|1; 1|]
+         ~padding:VALID ~name:"mrcnn_class_conv1"
+    |> normalisation ~name:"mrcnn_class_bn1"
+    |> activation Activation.Relu
+    |> conv2d [|1; 1; fc_layers_size; fc_layers_size|] [|1; 1|]
+         ~padding:VALID ~name:"mrcnn_class_conv2"
+    |> normalisation ~name:"mrcnn_class_bn2"
+    |> activation Activation.Relu in
+
+  let shared = reshape [|1000; 1024|] ~name:"pool_squeeze" x in (* squeeze dim 2 and 3?*)
+  let mrcnn_class_logits = linear num_classes ~name:"mrcnn_class_logits" shared in
+  let mrcnn_probs = activation Activation.(Softmax 1)
+                      ~name:"mrcnn_class" mrcnn_class_logits in
+  let x = linear (num_classes * 4) ~name:"mrcnn_bbox_fc" shared in
+
+  let mrcnn_bbox = reshape [|1000; num_classes; 4|] ~name:"mrcnn_bbox" x in (*check the 1000*)
+  [|mrcnn_class_logits; mrcnn_probs; mrcnn_bbox|]
 
 let build_fpn_mask_graph rois feature_maps image_meta pool_size num_classes =
-  ()
+  lambda [|100; pool_size; pool_size; 256|]
+    (pyramid_roi_align [|pool_size; pool_size|]) ~name:"roi_align_mask"
+  |> conv2d [|3; 3; 256; 256|] [|1; 1|] ~padding:SAME ~name:"mrcnn_mask_conv1"
+  |> normalisation ~name:"mrcnn_mask_bn1"
+  |> activation Activation.Relu
+                
+  |> conv2d [|3; 3; 256; 256|] [|1; 1|] ~padding:SAME ~name:"mrcnn_mask_conv2"
+  |> normalisation ~name:"mrcnn_mask_bn2"
+  |> activation Activation.Relu
+
+  |> conv2d [|3; 3; 256; 256|] [|1; 1|] ~padding:SAME ~name:"mrcnn_mask_conv3"
+  |> normalisation ~name:"mrcnn_mask_bn3"
+  |> activation Activation.Relu
+                
+  |> conv2d [|3; 3; 256; 256|] [|1; 1|] ~padding:SAME ~name:"mrcnn_mask_conv4"
+  |> normalisation ~name:"mrcnn_mask_bn4"
+  |> activation Activation.Relu
+                
+  |> transpose_conv2d [|2; 2; 256; 256|] [|2; 2|]
+       ~act_typ:Activation.Relu ~name:"mrcnn_mask_deconv"
+  |> conv2d [|1; 1; 256; num_classes|] [|1; 1|]
+       ~act_typ:Activation.Sigmoid ~name:"mrcnn_mask"
     
 (* *** MASK R-CNN *** *)
 let mrcnn () =
