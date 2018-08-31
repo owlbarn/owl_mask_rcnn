@@ -6,8 +6,23 @@ module N = Dense.Ndarray.S
 
 module C = Configuration
 
-let parse_image_meta_graph image =
-  ()
+type image_meta =
+  { image_id             : Dense.Ndarray.S.arr;
+    original_image_shape : Dense.Ndarray.S.arr;
+    image_shape          : Dense.Ndarray.S.arr;
+    window               : Dense.Ndarray.S.arr;
+    scale                : Dense.Ndarray.S.arr;
+    active_class_ids     : Dense.Ndarray.S.arr;
+  }
+
+let parse_image_meta_graph meta =
+  { image_id             = N.get_slice [[];[0]]     meta;
+    original_image_shape = N.get_slice [[];[1;3]]   meta;
+    image_shape          = N.get_slice [[];[4;6]]   meta;
+    window               = N.get_slice [[];[7;10]]  meta;
+    scale                = N.get_slice [[];[11]]    meta;
+    active_class_ids     = N.get_slice [[];[12;-1]] meta;
+  }
 
 (* *** PROPOSAL LAYER *** *)
 (* A box has given by [|y1; x1; y2; x2|] *)
@@ -47,10 +62,11 @@ let clip_boxes_graph boxes window =
 
 let proposal_layer proposal_count nms_threshold =
   (fun inputs ->
+    let inputs = Array.map unpack_arr inputs in
     let scores = N.get_slice [[]; []; [1]] inputs.(0) in
     let deltas = N.(inputs.(1) * reshape C.rpn_bbox_std_dev [|1; 1; 4|]) in
     let anchors = inputs.(2) in
-    
+
     let pre_nms_limit = min 6000 (N.shape anchors).(1) in
     let ix = N.top scores pre_nms_limit in
     let scores = N.init [|1; pre_nms_limit|] (fun i -> N.get scores (ix.(i))) in
@@ -69,8 +85,8 @@ let proposal_layer proposal_count nms_threshold =
       (fun i t -> N.set_slice [[];[i];[]] boxes (clip_boxes_graph t window)) boxes;
 
     (* TODO: implement non maximum suppression to select the boxes !!! *)
-    
-    boxes
+
+    pack_arr boxes
   )
 
 
@@ -78,6 +94,7 @@ let proposal_layer proposal_count nms_threshold =
 
 let pyramid_roi_align pool_shape =
   (fun inputs ->
+    let inputs = Array.map unpack_arr inputs in
     let boxes = inputs.(0) in
     let image_meta = inputs.(1) in
     let feature_maps = Array.sub inputs 2 4 in
@@ -86,10 +103,13 @@ let pyramid_roi_align pool_shape =
     let y1, x1, y2, x2 = boxes.(0), boxes.(1), boxes.(2), boxes.(3) in
     let h = N.(y2 - y1)
     and w = N.(x2 - x1) in
-    let image_shape = parse_image_meta_graph(image_meta).image_shape.(0) in
-    let image_area = image_shape.(0) *. image_shape.(1) in
+    let image_shape = (parse_image_meta_graph image_meta).image_shape in
+    (* shape of the first image of the batch *)
+    let image_area = N.get image_shape [|0;0|] *. N.get image_shape [|0;1|] in
     let roi_level = N.(log2 (sqrt (h * w) /$ (224. /. image_area))) in
-    let roi_level = N.(min2 5. (max2 2. (roi_level +$ 4.))) in
+    let five = N.of_array [|5.|] [|1|]
+    and two = N.of_array [|2.|] [|1|] in
+    let roi_level = N.(min2 five (max2 two (roi_level +$ 4.))) in
     let roi_level = N.squeeze ~axis:[|2|] roi_level in
 
     let zero = N.zeros [|1|] in
@@ -102,11 +122,14 @@ let pyramid_roi_align pool_shape =
     let pooled = N.concatenate ~axis:0 pooled in
     let box_to_level = N.concatenate ~axis:0 box_to_level in
     (* TODO *)
-    pooled
+    pack_arr pooled
   )
 
-  
-(* *** REGION PROPOSAL NETWORK *** 
+
+(* *** Detection Layer *** *)
+
+
+(* *** REGION PROPOSAL NETWORK ***
  * Add different names for each p_i? *)
 let rpn_graph feature_map anchors_per_location anchor_stride =
   let shared = conv2d [|3; 3; 256; 512|] [|anchor_stride; anchor_stride|] (* not 256 *)
@@ -133,9 +156,10 @@ let build_rpn_model input_map anchor_stride anchors_per_location depth =
 (* TODO: need TimeDistributed and PyramidROIAlign *)
 let fpn_classifier_graph rois feature_maps image_meta
       pool_size num_classes fc_layers_size =
+  let pyramid_fun = (pyramid_roi_align [|pool_size; pool_size|]) in
   let x =
-    lambda [|1000; pool_size; pool_size; 256|] (pyramid_roi_align [|pool_size; pool_size|])
-      ([|rois; image_meta|] @ feature_maps) ~name:"roi_align_classifier"
+    lambda_array [|C.post_nms_rois; pool_size; pool_size; 256|] pyramid_fun
+      ~name:"roi_align_classifier" (Array.append [|rois; image_meta|] feature_maps)
     |> conv2d [|pool_size; pool_size; 256; fc_layers_size|] [|1; 1|]
          ~padding:VALID ~name:"mrcnn_class_conv1"
     |> normalisation ~name:"mrcnn_class_bn1"
@@ -145,22 +169,23 @@ let fpn_classifier_graph rois feature_maps image_meta
     |> normalisation ~name:"mrcnn_class_bn2"
     |> activation Activation.Relu in
 
-  let shared = reshape [|1000; 1024|] ~name:"pool_squeeze" x in (* squeeze dim 2 and 3?*)
+  let shared = reshape [|C.post_nms_rois; 1024|] ~name:"pool_squeeze" x in (* squeeze dim 2 and 3?*)
   let mrcnn_class_logits = linear num_classes ~name:"mrcnn_class_logits" shared in
   let mrcnn_probs = activation Activation.(Softmax 1)
                       ~name:"mrcnn_class" mrcnn_class_logits in
   let x = linear (num_classes * 4) ~name:"mrcnn_bbox_fc" shared in
 
-  let mrcnn_bbox = reshape [|1000; num_classes; 4|] ~name:"mrcnn_bbox" x in (*check the 1000*)
-  [|mrcnn_class_logits; mrcnn_probs; mrcnn_bbox|]
+  let mrcnn_bbox = reshape [|C.post_nms_rois; num_classes; 4|] ~name:"mrcnn_bbox" x in
+  (mrcnn_class_logits, mrcnn_probs, mrcnn_bbox)
 
 let build_fpn_mask_graph rois feature_maps image_meta pool_size num_classes =
-  lambda [|100; pool_size; pool_size; 256|]
-    (pyramid_roi_align [|pool_size; pool_size|]) ~name:"roi_align_mask"
+  let pyramid_fun = pyramid_roi_align [|pool_size; pool_size|] in
+  lambda_array [|100; pool_size; pool_size; 256|] (* where does the 100 comes from? *)
+    pyramid_fun ~name:"roi_align_mask" (Array.append [|rois; image_meta|] feature_maps)
   |> conv2d [|3; 3; 256; 256|] [|1; 1|] ~padding:SAME ~name:"mrcnn_mask_conv1"
   |> normalisation ~name:"mrcnn_mask_bn1"
   |> activation Activation.Relu
-                
+
   |> conv2d [|3; 3; 256; 256|] [|1; 1|] ~padding:SAME ~name:"mrcnn_mask_conv2"
   |> normalisation ~name:"mrcnn_mask_bn2"
   |> activation Activation.Relu
@@ -168,29 +193,33 @@ let build_fpn_mask_graph rois feature_maps image_meta pool_size num_classes =
   |> conv2d [|3; 3; 256; 256|] [|1; 1|] ~padding:SAME ~name:"mrcnn_mask_conv3"
   |> normalisation ~name:"mrcnn_mask_bn3"
   |> activation Activation.Relu
-                
+
   |> conv2d [|3; 3; 256; 256|] [|1; 1|] ~padding:SAME ~name:"mrcnn_mask_conv4"
   |> normalisation ~name:"mrcnn_mask_bn4"
   |> activation Activation.Relu
-                
+
   |> transpose_conv2d [|2; 2; 256; 256|] [|2; 2|]
        ~act_typ:Activation.Relu ~name:"mrcnn_mask_deconv"
   |> conv2d [|1; 1; 256; num_classes|] [|1; 1|]
        ~act_typ:Activation.Sigmoid ~name:"mrcnn_mask"
-    
+
 (* *** MASK R-CNN *** *)
 let mrcnn () =
+  let () =
+    if C.image_shape.(0) mod 64 <> 0 || C.image_shape.(1) mod 64 <> 0 then
+      invalid_arg "Image width and height must be divisible by 64" in
+
   let input_image = input ~name:"input_image" C.image_shape in
   let input_image_meta = input ~name:"input_image_meta" [|C.image_meta_size|] in
   let anchors = input ~name:"input_anchors" [|256; 4|] in (* 256? How many anchors?*)
   let _, c2, c3, c4, c5 = Resnet.resnet101 input_image in
-  
+
   let tdps = C.top_down_pyramid_size in
   let p5 = conv2d [|1; 1; 2048; tdps|] [|1; 1|] ~padding:VALID ~name:"fpn_c5p5" c5 in
   (* change this after you have upsampling2d *)
   let p4 =
     add ~name:"fpn_p4add"
-      [|p5; (* up_sampling2d [|2; 2|] ~name:"fpn_p5upsampled" p5 *) 
+      [|p5; (* up_sampling2d [|2; 2|] ~name:"fpn_p5upsampled" p5 *)
         conv2d [|1; 1; 1024; tdps|] [|1; 1|] ~padding:VALID ~name:"fpn_c4p4" c4|] in
   let p3 =
     add ~name:"fpn_p3add"
@@ -204,24 +233,37 @@ let mrcnn () =
   let p3 = conv2d [|3; 3; tdps; tdps|] [|1; 1|] ~padding:SAME ~name:"fpn_p3" p3 in
   let p4 = conv2d [|3; 3; tdps; tdps|] [|1; 1|] ~padding:SAME ~name:"fpn_p4" p4 in
   let p5 = conv2d [|3; 3; tdps; tdps|] [|1; 1|] ~padding:SAME ~name:"fpn_p5" p5 in
-
   let p6 = max_pool2d [|1; 1|] [|2; 2|] ~padding:VALID ~name:"fpn_p6" p5 in
 
   let rpn_feature_maps = [|p2; p3; p4; p5; p6|] in
   let mrcnn_feature_maps = [|p2; p3; p4; p5|] in
 
   let nb_ratios = Array.length C.rpn_anchor_ratios in
-  
-  (* it should be possible to create this network only once and to reuse it 5 times,
+
+  (* it should be possible to create this network only once and reuse it 5 times,
    * but I can't create a network with multiple outputs in Owl? *)
   let rpns = Array.init 5
                (fun i -> build_rpn_model rpn_feature_maps.(i)
                            C.rpn_anchor_stride nb_ratios tdps) in
-  let rpn_class = concatenate 1 ~name:"rpn_class"
+  let rpn_class = concatenate 1 ~name:"rpn_class" (* axis 0? Batch axis taken into account? *)
                     (Array.init 5 (fun i -> rpns.(1).(i))) in
-  let rpn_bbox = concatenate 1 ~name:"rpn_class"
-                    (Array.init 5 (fun i -> rpns.(2).(i))) in
-  (* let rpn_rois = (proposal_layer C.post_nms_rois_inference C.rpn_nms_threshold
-                   ~name:"ROI") [|rpn_class; rpn_bbox; anchors|] in *)
-  rpn_class, rpn_bbox
-  
+  let rpn_bbox = concatenate 1 ~name:"rpn_bbox" (* same *)
+                   (Array.init 5 (fun i -> rpns.(2).(i))) in
+
+  let prop_f = proposal_layer C.post_nms_rois C.rpn_nms_threshold in
+  let rpn_rois = lambda_array [|C.post_nms_rois; 4|] prop_f ~name:"ROI"
+                   [|rpn_class; rpn_bbox; anchors|] in
+  let mrcnn_class_logits, mrcnn_class, mrcnn_bbox =
+    fpn_classifier_graph rpn_rois mrcnn_feature_maps input_image_meta
+      C.pool_size C.num_classes C.fpn_classif_fc_layers_size in
+
+  let detection = lambda_array [|100;6|] detection_layer ~name:"mrcnn_detection"
+                    [|rpn_rois; mrcnn_class; mrcnn_bbox; input_image_meta|] in
+  let detection_boxes = lambda_array [|100;4|]
+                          (fun x -> Maths.get_slice [[];[];[0;4]] x.(0))
+                          detection in
+
+  let mrcnn_mask = build_fpn_mask_graph detection_boxes mrcnn_feature_maps
+                     input_image_meta C.mask_pool_size C.num_classes in
+  (* model? *)
+  mrcnn_mask
