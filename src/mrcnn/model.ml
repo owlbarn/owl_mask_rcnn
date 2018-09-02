@@ -23,8 +23,17 @@ let mrcnn () =
   (* compensates for the lack of Padding2D *)
   let input_shape = [|C.image_shape.(0) + 6; C.image_shape.(1) + 6; 3|] in
   let input_image = input ~name:"input_image" input_shape in
-  let input_image_meta = input ~name:"input_image_meta" [|C.image_meta_size|] in
-  let anchors = input ~name:"input_anchors" [|nb_anchors; 4|] in
+
+  (* The next two layers should be inputs of the network. Since Owl does not
+   * support multi-inputs networks, we define them as input_image successors. *)
+  let input_image_meta =
+    lambda_array [|C.image_meta_size|]
+      (fun t -> pack_arr (N.zeros [|(shape t.(0)).(0); C.image_meta_size|]))
+      ~name:"input_image_meta" [|input_image|] in
+  let anchors = lambda_array [|nb_anchors; 4|]
+                  (fun t -> pack_arr (N.zeros [|(shape t.(0)).(0); nb_anchors; 4|]))
+                  ~name:"input_anchors" [|input_image|] in
+
   let _, c2, c3, c4, c5 = Resnet.resnet101 input_image in
 
   let tdps = C.top_down_pyramid_size in
@@ -83,4 +92,4 @@ let mrcnn () =
   let mrcnn_mask = FPN.build_fpn_mask_graph detection_boxes mrcnn_feature_maps
                      input_image_meta C.mask_pool_size C.num_classes in*)
   (* model? *)
-  rpn_class
+  rpn_rois

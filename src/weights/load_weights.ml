@@ -3,8 +3,8 @@ open Owl_types
 open Bigarray
 open Hdf5_caml
 
-open Neural 
-open Neural.S 
+open Neural
+open Neural.S
 open Neural.S.Graph
 module N = Dense.Ndarray.Generic
 module AD = Owl.Algodiff.S
@@ -22,7 +22,7 @@ let lin_W = "kernel:0"
 let lin_b = "bias:0"
 
 (* A helper function *)
-let print_array a = 
+let print_array a =
   Printf.printf "[|";
   Array.iter (fun x -> Printf.printf "%i; " x) a ;
   Printf.printf "|]\n"
@@ -49,13 +49,13 @@ let () =
             g = N.cast_d2s g and
             mu = N.cast_d2s mu and
             var = N.cast_d2s var in
-        let len = Dense.Ndarray.S.shape b in 
+        let len = Dense.Ndarray.S.shape b in
         let b = Dense.Ndarray.S.reshape b [|1;1;1;len.(0)|] in
-        let len = Dense.Ndarray.S.shape g in 
+        let len = Dense.Ndarray.S.shape g in
         let g = Dense.Ndarray.S.reshape g [|1;1;1;len.(0)|] in
-        let len = Dense.Ndarray.S.shape mu in 
+        let len = Dense.Ndarray.S.shape mu in
         let mu = Dense.Ndarray.S.reshape mu [|1;1;1;len.(0)|] in
-        let len = Dense.Ndarray.S.shape var in 
+        let len = Dense.Ndarray.S.shape var in
         let var = Dense.Ndarray.S.reshape var [|1;1;1;len.(0)|] in
         param.(0) <- AD.pack_arr b; param.(1) <- AD.pack_arr g;
         Neuron.update n.neuron param;
@@ -73,6 +73,6 @@ let () =
       else
         ()
     ) nodes;
-  Graph.save nn "resnet.network";
+  Graph.save nn "mrcnn.network";
   H5.close h5_file
 

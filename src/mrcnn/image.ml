@@ -20,11 +20,6 @@ let parse_image_meta meta =
   }
 
 
-let non_max_suppression ?(score_threshold=neg_infinity) boxes
-      scores max_output_size iou_threshold =
-  ()
-
-
 (* Applies the deltas to the boxes.
  * Boxes: [N, [y1, x1, y2, x2]], deltas: [N, [dx, dy, log(dh), log(dy)]]. *)
 let apply_box_deltas boxes deltas =
@@ -46,10 +41,11 @@ let apply_box_deltas boxes deltas =
   and x1 = center_x - half_width
   and y2 = center_y + half_height
   and x2 = center_x + half_width in
-  N.concatenate ~axis:1 [|y1; x1; y2; x2|]
+  concatenate ~axis:1 [|y1; x1; y2; x2|]
 
 
-(* Clip boxes to image boundaries. *)
+(* Clip boxes to image boundaries.
+ * Boxes: [N, [y1, x1, y2, x2]], window: [y1, x1, y2, x2]. *)
 let clip_boxes boxes window =
   let open N in
   let edges = split [|1; 1; 1; 1|] window in
@@ -68,3 +64,46 @@ let norm_boxes_graph boxes shape =
   let scale = N.((of_array [|h;w;h;w|] [|4|]) -$ 1.) in
   let shift = N.of_array [|0.;0.;1.;1.|] [|4|] in
   N.((boxes - shift) / scale)
+
+
+let area box = (box.(2) -. box.(0)) *. (box.(3) -. box.(1))
+
+
+(* Check that the boxes (y1, x1) is always the top left corner? *)
+let intersection_over_union box1 box2 =
+  let y1 = max box1.(0) box2.(0)
+  and x1 = max box1.(1) box2.(1)
+  and y2 = min box1.(2) box2.(2)
+  and x2 = min box1.(3) box2.(3) in
+  let area1, area2 = area box1, area box2 in
+  let inter_area = max 0. (y2 -. y1) *. max 0. (x2 -. x1) in
+  inter_area /. (area1 +. area2 -. inter_area +. 1e-6)
+
+
+(* Greedily returns the indices of the boxes with the highest score that don't
+ * have an intersection over union greater than iou_threshold with each
+ * other. Takes at most max_output_size boxes. Assumes that the boxes are
+ * ordered by score.
+ * TODO is it possible to use vectorised ops to speed up the computation? *)
+let non_max_suppression boxes max_output_size iou_threshold =
+  let n = (N.shape boxes).(0) in
+  let boxes = Array.init n (fun i ->
+                  Array.init 4 (fun j -> N.get boxes [|i; j|])) in
+  let selected = ref []
+  and size = ref 0
+  and i = ref 0 in
+  while !i < n && !size < max_output_size do
+    let ok = ref true
+    and j = ref (!size - 1) in
+    while !ok && !j >= 0 do
+      if intersection_over_union boxes.(!i) boxes.(!j) > iou_threshold then
+        ok := false;
+      j := !j - 1;
+    done;
+    if !ok then (
+      size := !size + 1;
+      selected := !i :: !selected;
+    );
+    i := !i + 1;
+  done;
+  Array.of_list (List.rev !selected)
