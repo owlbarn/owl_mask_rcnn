@@ -1,5 +1,5 @@
-PROGRAMS = weights/load_weights.ml eval.ml
-OCAMLPACKS = owl hdf5_caml
+PROGRAMS =  eval.ml
+OCAMLPACKS = owl #hdf5_caml
 
 SOURCES = $(addprefix src/, $(PROGRAMS))
 

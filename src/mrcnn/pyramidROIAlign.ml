@@ -7,7 +7,7 @@ module C = Configuration
 (* *** ROIAlign Layer *** *)
 
 let pyramid_roi_align pool_shape =
-  (fun inputs ->
+  fun inputs ->
     let inputs = Array.map AD.unpack_arr inputs in
     let boxes = inputs.(0) in
     let image_meta = inputs.(1) in
@@ -37,4 +37,4 @@ let pyramid_roi_align pool_shape =
     let box_to_level = N.concatenate ~axis:0 box_to_level in
     (* TODO *)
     AD.pack_arr pooled
-  )
+

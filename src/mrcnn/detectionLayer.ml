@@ -9,7 +9,7 @@ let refine_detections_graph =
   ()
 
 let detection_layer () =
-  (fun inputs ->
+  fun inputs ->
     let inputs = Array.map AD.unpack_arr inputs in
     let rois = inputs.(0)
     and mrcnn_class = inputs.(1)
@@ -26,4 +26,4 @@ let detection_layer () =
     let reshaped_detections = N.reshape detections_batch
                                 [|C.batch_size; C.detection_max_instances|] in
     AD.pack_arr reshaped_detections
-  )
+

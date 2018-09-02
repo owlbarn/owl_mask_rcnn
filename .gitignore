@@ -5,3 +5,4 @@ _build/*
 *.hdf5
 *#
 .#*
+current_network.txt
