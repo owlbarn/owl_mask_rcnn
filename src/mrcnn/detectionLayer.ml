@@ -16,7 +16,7 @@ let detection_layer () =
     and mrcnn_bbox = inputs.(2)
     and image_meta = inputs.(3) in
 
-    let meta = Image.parse_image_meta_graph image_meta in
+    let meta = Image.parse_image_meta image_meta in
     let image_shape = meta.image_shape in
     let h, w = N.get image_shape [|0;0|], N.get image_shape [|0;1|] in
     let window = Image.norm_boxes_graph meta.window [|h;w|] in

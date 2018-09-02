@@ -10,7 +10,7 @@ type image_meta =
     active_class_ids     : Dense.Ndarray.S.arr;
   }
 
-let parse_image_meta_graph meta =
+let parse_image_meta meta =
   { image_id             = N.get_slice [[];[0]]     meta;
     original_image_shape = N.get_slice [[];[1;3]]   meta;
     image_shape          = N.get_slice [[];[4;6]]   meta;
@@ -20,8 +20,8 @@ let parse_image_meta_graph meta =
   }
 
 
-let non_max_suppression boxes scores max_output_size iou_threshold
-      ?(score_threshold=neg_infinity) =
+let non_max_suppression ?(score_threshold=neg_infinity) boxes
+      scores max_output_size iou_threshold =
   ()
 
 
