@@ -7,8 +7,7 @@ module N = Dense.Ndarray.S
 module RPN = RegionProposalNetwork
 module PL = ProposalLayer
 module FPN = FeaturePyramidNetwork
-(* module PRA = PyramidROIAlign
-module DL = DetectionLayer *)
+(* module DL = DetectionLayer *)
 module C = Configuration
 
 (* Note: most function definitions only support batches of size 1, which is
@@ -29,7 +28,7 @@ let mrcnn () =
     lambda_array [|C.image_meta_size|]
       (fun t -> pack_arr (N.zeros [|(shape t.(0)).(0); C.image_meta_size|]))
       ~name:"input_image_meta" [|input_image|] in
-  let anchors =
+  let anchors = (* checked: the anchors are the same as the Keras ones *)
     let anchors = MrcnnUtil.get_anchors C.image_shape in
     lambda_array [|C.num_anchors; 4|]
       (fun t -> let shape = Array.append [|(shape t.(0)).(0)|] (N.shape anchors) in
@@ -80,11 +79,10 @@ let mrcnn () =
     lambda_array [|C.post_nms_rois; 4|] prop_f ~name:"ROI"
       [|rpn_class; rpn_bbox; anchors|] in
 
-(*
   let mrcnn_class_logits, mrcnn_class, mrcnn_bbox =
     FPN.fpn_classifier_graph rpn_rois mrcnn_feature_maps input_image_meta
       C.pool_size C.num_classes C.fpn_classif_fc_layers_size in
-
+(*
   let detection = lambda_array [|C.detection_max_instances; 6|]
                     (DL.detection_layer ()) ~name:"mrcnn_detection"
                     [|rpn_rois; mrcnn_class; mrcnn_bbox; input_image_meta|] in
@@ -94,4 +92,4 @@ let mrcnn () =
 
   let mrcnn_mask = FPN.build_fpn_mask_graph detection_boxes mrcnn_feature_maps
                      input_image_meta C.mask_pool_size C.num_classes in*)
-  rpn_rois
+  mrcnn_class

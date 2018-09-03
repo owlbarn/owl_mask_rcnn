@@ -1,5 +1,68 @@
 open Owl
 module N = Dense.Ndarray.S
+module C = Configuration
+
+
+(* Preprocessing recommended for Resnet. *)
+let preprocess img =
+  let img = N.copy img in
+  let r = N.get_slice [[];[];[0]] img in
+  let g = N.get_slice [[];[];[1]] img in
+  let b = N.get_slice [[];[];[2]] img in
+
+  let r = N.sub_scalar r 123.68 in
+  let g = N.sub_scalar g 116.779 in
+  let b = N.sub_scalar b 103.939 in
+
+  N.set_slice [[];[];[0]] img r;
+  N.set_slice [[];[];[1]] img g;
+  N.set_slice [[];[];[2]] img b;
+  img
+
+(* Converts an Ndarray to a Camlimages' Image. *)
+let img_of_ndarray arr =
+  let shape = N.shape arr in
+  assert ((Array.length shape) = 3 && shape.(2) = 3);
+  let img = Rgb24.create shape.(1) shape.(0) in
+  for i = 0 to shape.(1) - 1 do
+    for j = 0 to shape.(0) - 1 do
+      Rgb24.set img i j {r = int_of_float (N.get arr [|j;i;0|]);
+                         g = int_of_float (N.get arr [|j;i;1|]);
+                         b = int_of_float (N.get arr [|j;i;2|])}
+    done;
+  done;
+  Images.Rgb24 img
+
+
+(* Converts the file src to an Ndarray of colors RGB. Keeps the original scale
+ * and pads with 0's if necessary. *)
+let resize ?w ?h src =
+  let comp k n =
+    (n lsr ((2 - k) lsl 3)) land 0x0000FF in
+  let img = Images.load src [] in (* load parameters???? *)
+  let img_w, img_h = Images.size img in
+  let w = match w with | Some w -> w | None -> img_w in
+  let h = match h with | Some h -> h | None -> img_h in
+
+  let scale_w = float w /. float img_w
+  and scale_h = float h /. float img_h in
+  let scale = min scale_w scale_h in
+  let window_w = int_of_float (Owl.Maths.round (scale *. (float img_w)))
+  and window_h = int_of_float (Owl.Maths.round (scale *. (float img_h))) in
+  let img = match img with
+    | Rgb24 map -> Rgb24.resize None map window_w window_h
+    | _ -> invalid_arg "not implemented yet" in (* TODO *)
+  let img_arr =
+    let img_arr = Graphic_image.array_of_image (Rgb24 img) in
+    N.init_nd [|h; w; 3|]
+      (fun t -> float (comp t.(2) img_arr.(t.(0)).(t.(1)))) in
+  let top_pad, left_pad = (h - window_h) / 2, (w - window_w) / 2 in
+  let bottom_pad, right_pad = h - window_h - top_pad, w - window_w - left_pad in
+  let padding = [[top_pad; bottom_pad]; [left_pad; right_pad]; [0; 0]] in
+  let window = [|top_pad; left_pad; window_h + top_pad; window_w + left_pad|] in
+  let image = N.pad ~v:0. padding img_arr in
+  image, [|img_h; img_w|], window, scale, padding
+
 
 type image_meta =
   { image_id             : Dense.Ndarray.S.arr;
@@ -10,6 +73,7 @@ type image_meta =
     active_class_ids     : Dense.Ndarray.S.arr;
   }
 
+
 let parse_image_meta meta =
   { image_id             = N.get_slice [[];[0]]     meta;
     original_image_shape = N.get_slice [[];[1;3]]   meta;
@@ -18,6 +82,28 @@ let parse_image_meta meta =
     scale                = N.get_slice [[];[11]]    meta;
     active_class_ids     = N.get_slice [[];[12;-1]] meta;
   }
+
+
+let compose_image_meta image_id original_shape image_shape window scale =
+  let meta = N.zeros [|C.image_meta_size|] in
+  let set a b array = N.set_slice [[a; b]] meta
+                        (N.of_array array [|Array.length array|]) in
+  set 0 0 [|float image_id|];
+  set 1 3 (Array.map float original_shape);
+  set 4 6 (Array.map float image_shape);
+  set 7 10 (Array.map float window);
+  set 11 11 [|scale|];
+  (* from 12 to -1: all class ids are used *)
+  meta
+
+
+let mold_inputs src =
+  let h, w = C.image_shape.(0), C.image_shape.(1) in
+  let molded_image, original_shape, window, scale, padding = resize ~w ~h src in
+  let processed_image = preprocess molded_image in
+  let image_meta = compose_image_meta 0 original_shape
+                     (N.shape processed_image) window scale in
+  processed_image, image_meta, window
 
 
 (* Applies the deltas to the boxes.

@@ -10,7 +10,7 @@ module C = Configuration
 (* TODO: need TimeDistributed and PyramidROIAlign *)
 let fpn_classifier_graph rois feature_maps image_meta
       pool_size num_classes fc_layers_size =
-  let pyramid_fun = (PRA.pyramid_roi_align [|pool_size; pool_size|]) in
+  let pyramid_fun = PRA.pyramid_roi_align [|pool_size; pool_size|] in
   let x =
     lambda_array [|C.post_nms_rois; pool_size; pool_size; 256|] pyramid_fun
       ~name:"roi_align_classifier" (Array.append [|rois; image_meta|] feature_maps)
