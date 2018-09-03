@@ -6,8 +6,8 @@ module N = Dense.Ndarray.S
 
 module RPN = RegionProposalNetwork
 module PL = ProposalLayer
-(*module PRA = PyramidROIAlign
 module FPN = FeaturePyramidNetwork
+(* module PRA = PyramidROIAlign
 module DL = DetectionLayer *)
 module C = Configuration
 
@@ -19,7 +19,6 @@ let mrcnn () =
   let () =
     if C.image_shape.(0) mod 64 <> 0 || C.image_shape.(1) mod 64 <> 0 then
       invalid_arg "Image width and height must be divisible by 64" in
-  let nb_anchors = 261888 in
   (* compensates for the lack of Padding2D *)
   let input_shape = [|C.image_shape.(0) + 6; C.image_shape.(1) + 6; 3|] in
   let input_image = input ~name:"input_image" input_shape in
@@ -30,9 +29,12 @@ let mrcnn () =
     lambda_array [|C.image_meta_size|]
       (fun t -> pack_arr (N.zeros [|(shape t.(0)).(0); C.image_meta_size|]))
       ~name:"input_image_meta" [|input_image|] in
-  let anchors = lambda_array [|nb_anchors; 4|]
-                  (fun t -> pack_arr (N.zeros [|(shape t.(0)).(0); nb_anchors; 4|]))
-                  ~name:"input_anchors" [|input_image|] in
+  let anchors =
+    let anchors = MrcnnUtil.get_anchors C.image_shape in
+    lambda_array [|C.num_anchors; 4|]
+      (fun t -> let shape = Array.append [|(shape t.(0)).(0)|] (N.shape anchors) in
+                pack_arr (N.reshape anchors shape))
+      ~name:"input_anchors" [|input_image|] in
 
   let _, c2, c3, c4, c5 = Resnet.resnet101 input_image in
 
@@ -77,6 +79,7 @@ let mrcnn () =
     let prop_f = PL.proposal_layer C.post_nms_rois C.rpn_nms_threshold in
     lambda_array [|C.post_nms_rois; 4|] prop_f ~name:"ROI"
       [|rpn_class; rpn_bbox; anchors|] in
+
 (*
   let mrcnn_class_logits, mrcnn_class, mrcnn_bbox =
     FPN.fpn_classifier_graph rpn_rois mrcnn_feature_maps input_image_meta
@@ -91,5 +94,4 @@ let mrcnn () =
 
   let mrcnn_mask = FPN.build_fpn_mask_graph detection_boxes mrcnn_feature_maps
                      input_image_meta C.mask_pool_size C.num_classes in*)
-  (* model? *)
   rpn_rois

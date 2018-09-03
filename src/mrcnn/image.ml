@@ -59,7 +59,7 @@ let clip_boxes boxes window =
 
 
 (* this should be changed if batch size > 1 *)
-let norm_boxes_graph boxes shape =
+let norm_boxes boxes shape =
   let h, w = shape.(0), shape.(1) in
   let scale = N.((of_array [|h;w;h;w|] [|4|]) -$ 1.) in
   let shift = N.of_array [|0.;0.;1.;1.|] [|4|] in
@@ -69,7 +69,7 @@ let norm_boxes_graph boxes shape =
 let area box = (box.(2) -. box.(0)) *. (box.(3) -. box.(1))
 
 
-(* Check that the boxes (y1, x1) is always the top left corner? *)
+(* Check that the point (y1, x1) is always the top left corner? *)
 let intersection_over_union box1 box2 =
   let y1 = max box1.(0) box2.(0)
   and x1 = max box1.(1) box2.(1)
