@@ -30,7 +30,7 @@ let pyramid_roi_align pool_shape = fun inputs ->
 
   let zero = N.zeros [|1|] in
   let pooled = Array.make 4 zero in
-  let box_to_level = Array.make 4 [||] in
+  let box_to_level = ref [] in
   for level = 2 to 5 do
     let i = level - 2 in
     let ix = N.filteri_nd (fun _ x -> (int_of_float (x +. 1e-5)) = level)
@@ -38,14 +38,29 @@ let pyramid_roi_align pool_shape = fun inputs ->
     (* Would set_slice be more efficient? *)
     let level_boxes = N.init_nd [|Array.length ix; 4|]
                         (fun t -> N.get boxes [|0; ix.(t.(0)).(1); t.(1)|]) in
-    box_to_level.(i) <- ix;
-    
+    box_to_level := ix :: !box_to_level;
+
     (* *** Stop gradient computation here if training the network *** *)
 
     pooled.(i) <- Image.crop_and_resize feature_maps.(i) level_boxes pool_shape;
   done;
 
-  let pooled = N.concatenate ~axis:0 pooled in
-  let box_to_level = N.concatenate ~axis:0 box_to_level in
-  (* TODO *)
+  (* Rearrange pooled in the original order *)
+  let box_to_level =
+    let tmp = Array.concat (List.rev !box_to_level) in
+    Array.init (Array.length tmp) (fun i -> Array.append tmp.(i) [|i|]) in
+  let comp2 a b =
+    match compare a.(0) b.(0) with
+    | 0 -> compare a.(1) b.(1)
+    | x -> x in
+  Array.sort comp2 box_to_level;
+
+  let pooled =
+    let tmp = N.concatenate ~axis:0 pooled in
+    let result = N.zeros (N.shape tmp) in
+    N.iteri_slice ~axis:0
+      (fun i t -> N.set_slice [[i];[];[];[]] result t) tmp;
+    result in
+
+  N.print pooled;
   AD.pack_arr (N.expand pooled 5)

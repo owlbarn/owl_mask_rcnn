@@ -2,7 +2,6 @@ open Owl
 module N = Dense.Ndarray.S
 module C = Configuration
 
-
 (* Preprocessing recommended for Resnet. *)
 let add_rgb img rgb =
   let img = N.copy img in

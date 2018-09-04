@@ -96,7 +96,12 @@ let mrcnn () =
 
   let mrcnn_mask = FPN.build_fpn_mask_graph detection_boxes mrcnn_feature_maps
                      input_image_meta C.mask_pool_size C.num_classes in*)
-  get_network rpn_rois
+  get_network mrcnn_class
+
+let update_image_meta nn image_meta =
+  let input_meta_node = get_node nn "input_image_meta" in
+  let image_meta = N.expand image_meta 2 in
+  input_meta_node.output <- Some (pack_arr image_meta)
 
 let detect () =
   let nn = mrcnn () in
@@ -113,9 +118,7 @@ let detect () =
 
     (* Necessary to avoid relying on the size of the image to build the
      * network. *)
-    let input_meta_node = get_node nn "input_image_meta" in
-    let image_meta = N.expand image_meta 2 in
-    input_meta_node.output <- Some (pack_arr image_meta);
+    update_image_meta nn image_meta;
 
     Graph.model nn image
   )

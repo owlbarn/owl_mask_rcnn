@@ -1,4 +1,4 @@
-PROGRAMS =  eval.ml
+PROGRAMS = eval.ml
 OCAMLPACKS = owl graphics camlimages.all_formats camlimages.graphics #hdf5_caml
 
 SOURCES = $(addprefix src/, $(PROGRAMS))
