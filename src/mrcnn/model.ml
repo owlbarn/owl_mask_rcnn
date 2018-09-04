@@ -82,11 +82,11 @@ let mrcnn () =
     let prop_f = PL.proposal_layer C.post_nms_rois C.rpn_nms_threshold in
     lambda_array [|C.post_nms_rois; 4|] prop_f ~name:"ROI"
       [|rpn_class; rpn_bbox; anchors|] in
-(*
+
   let mrcnn_class_logits, mrcnn_class, mrcnn_bbox =
     FPN.fpn_classifier_graph rpn_rois mrcnn_feature_maps input_image_meta
       C.pool_size C.num_classes C.fpn_classif_fc_layers_size in
-
+(*
   let detection = lambda_array [|C.detection_max_instances; 6|]
                     (DL.detection_layer ()) ~name:"mrcnn_detection"
                     [|rpn_rois; mrcnn_class; mrcnn_bbox; input_image_meta|] in
@@ -111,6 +111,8 @@ let detect () =
     let image = N.pad ~v:0. [[3;3];[3;3];[0;0]] molded_image in
     let image = N.expand image 4 in
 
+    (* Necessary to avoid relying on the size of the image to build the
+     * network. *)
     let input_meta_node = get_node nn "input_image_meta" in
     let image_meta = N.expand image_meta 2 in
     input_meta_node.output <- Some (pack_arr image_meta);

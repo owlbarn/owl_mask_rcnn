@@ -52,9 +52,10 @@ let resize ?w ?h src =
   let w = match w with | Some w -> w | None -> img_w in
   let h = match h with | Some h -> h | None -> img_h in
 
-  let scale_w = float w /. float img_w
-  and scale_h = float h /. float img_h in
-  let scale = min scale_w scale_h in
+  let scale =
+    let scale_w = float w /. float img_w
+    and scale_h = float h /. float img_h in
+    min scale_w scale_h in
   (* check that this always gives exactly 1024 for one of them? *)
   let window_w = int_of_float (Owl.Maths.round (scale *. (float img_w)))
   and window_h = int_of_float (Owl.Maths.round (scale *. (float img_h))) in
@@ -62,6 +63,7 @@ let resize ?w ?h src =
     | Rgb24 map -> Rgb24.resize None map window_w window_h
     | _ -> invalid_arg "not implemented yet" in (* TODO *)
   let img_arr =
+    (* Should avoid using Graphics? TODO Test how long it takes *)
     let img_arr = Graphic_image.array_of_image (Rgb24 img) in
     N.init_nd [|window_h; window_w; 3|]
       (fun t -> float (comp t.(2) img_arr.(t.(0)).(t.(1)))) in
@@ -194,3 +196,71 @@ let non_max_suppression boxes max_output_size iou_threshold =
     i := !i + 1;
   done;
   Array.of_list (List.rev !selected)
+
+let crop_and_resize_box ?(extrapolation_value=0.) image box shape =
+  let y1, x1, y2, x2 = box.(0), box.(1), box.(2), box.(3) in
+  let img_h, img_w, dep = let sh = (N.shape image) in sh.(0), sh.(1), sh.(2) in
+  let img_hf, img_wf = float img_h, float img_w in
+  let crop_h, crop_w = shape.(0), shape.(1) in
+  let crop_hf, crop_wf = float crop_h, float crop_w in
+  let h_scale = if crop_h > 1 then (y2 -. y1) *. (img_hf -. 1.) /. (crop_hf -. 1.)
+                else 0. in
+  let w_scale = if crop_w > 1 then (x2 -. x1) *. (img_wf -. 1.) /. (crop_wf -. 1.)
+                else 0. in
+  let result = N.zeros [|crop_h; crop_w; dep|] in
+  let set_res y x d v = N.set result [|y; x; d|] v in
+  for y = 0 to crop_h - 1 do
+    let yf = float y in
+    let in_y = if crop_h > 1 then y1 *. (img_hf -. 1.) +. yf *. h_scale
+               else 0.5 *. (y1 +. y2) *. (img_hf -. 1.) in
+    if in_y < 0. || in_y > img_hf -. 1. then
+      for x = 0 to crop_w - 1 do
+        for d = 0 to dep - 1 do
+          set_res y x d extrapolation_value;
+        done;
+      done
+    else
+      (* linear interpolation *)
+      let top_y = int_of_float (floor in_y)
+      and bottom_y = int_of_float (ceil in_y) in
+      let y_lerp = in_y -. (floor in_y) in
+      for x = 0 to crop_w - 1 do
+        let xf = float x in
+        let in_x = if crop_w > 1 then x1 *. (img_wf -. 1.) +. xf *. w_scale
+                   else 0.5 *. (x1 +. x2) *. (img_wf -. 1.) in
+        if in_x < 0. || in_x > img_wf -. 1. then
+          for d = 0 to dep - 1 do
+            set_res y x d extrapolation_value;
+          done
+        else
+          let left_x = int_of_float (floor in_x)
+          and right_x = int_of_float (ceil in_x) in
+          let x_lerp = in_x -. (floor in_x) in
+          for d = 0 to dep - 1 do
+            let top_left = N.get image [|top_y; left_x; d|] in
+            let top_right = N.get image [|top_y; right_x; d|] in
+            let bottom_left = N.get image [|bottom_y; left_x; d|] in
+            let bottom_right = N.get image [|bottom_y; right_x; d|] in
+            let top = top_left +. (top_right -. top_left) *. x_lerp in
+            let bottom = bottom_left +. (bottom_right -. bottom_left) *. x_lerp in
+            set_res y x d (top +. (bottom -. top) *. y_lerp);
+          done
+      done
+  done;
+  result
+
+(* For each box in boxes, crops the box out of the image and resize it to
+ * crop_shape using bilinear inerpolation.
+ * The boxes should be in normalised coordinates.
+ * Returns a tensor of shape [num_boxes, crop_shape.(0), crop_shape.(1),
+ * depth].
+ * Algorithm ported from https://github.com/tensorflow/tensorflow/blob/
+ * master/tensorflow/core/kernels/crop_and_resize_op.cc#L202 *)
+let crop_and_resize image boxes crop_shape =
+  let n = (N.shape boxes).(0) in
+  let results = Array.make n (N.zeros [||]) in
+  for i = 0 to n - 1 do
+    let box = Array.init 4 (fun j -> N.get boxes [|i; j|]) in
+    results.(i) <- crop_and_resize_box image box crop_shape;
+  done;
+  N.concatenate ~axis:0 results
