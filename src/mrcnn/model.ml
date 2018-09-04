@@ -23,16 +23,20 @@ let mrcnn () =
   let input_image = input ~name:"input_image" input_shape in
 
   (* The next two layers should be inputs of the network. Since Owl does not
-   * support multi-inputs networks, we define them as input_image successors. *)
+   * support multi-inputs networks, we define them as input_image successors.
+   * We can note that input_image_meta depends only on the size of the input
+   * image. To avoid making the whole network dependent on the size of the
+   * input, it has to be updated after the network is built. *)
+  let f input t =
+    let shape = Array.append [|(shape t.(0)).(0)|] (N.shape input) in
+    pack_arr (N.reshape input shape) in
+
   let input_image_meta =
-    lambda_array [|C.image_meta_size|]
-      (fun t -> pack_arr (N.zeros [|(shape t.(0)).(0); C.image_meta_size|]))
-      ~name:"input_image_meta" [|input_image|] in
+    lambda_array [|C.image_meta_size|] (f (N.zeros [|C.image_meta_size|]))
+        ~name:"input_image_meta" [|input_image|] in
   let anchors = (* checked: the anchors are the same as the Keras ones *)
     let anchors = MrcnnUtil.get_anchors C.image_shape in
-    lambda_array [|C.num_anchors; 4|]
-      (fun t -> let shape = Array.append [|(shape t.(0)).(0)|] (N.shape anchors) in
-                pack_arr (N.reshape anchors shape))
+    lambda_array (N.shape anchors) (f anchors)
       ~name:"input_anchors" [|input_image|] in
 
   let _, c2, c3, c4, c5 = Resnet.resnet101 input_image in
@@ -78,11 +82,11 @@ let mrcnn () =
     let prop_f = PL.proposal_layer C.post_nms_rois C.rpn_nms_threshold in
     lambda_array [|C.post_nms_rois; 4|] prop_f ~name:"ROI"
       [|rpn_class; rpn_bbox; anchors|] in
-
+(*
   let mrcnn_class_logits, mrcnn_class, mrcnn_bbox =
     FPN.fpn_classifier_graph rpn_rois mrcnn_feature_maps input_image_meta
       C.pool_size C.num_classes C.fpn_classif_fc_layers_size in
-(*
+
   let detection = lambda_array [|C.detection_max_instances; 6|]
                     (DL.detection_layer ()) ~name:"mrcnn_detection"
                     [|rpn_rois; mrcnn_class; mrcnn_bbox; input_image_meta|] in
@@ -92,4 +96,24 @@ let mrcnn () =
 
   let mrcnn_mask = FPN.build_fpn_mask_graph detection_boxes mrcnn_feature_maps
                      input_image_meta C.mask_pool_size C.num_classes in*)
-  mrcnn_class
+  get_network rpn_rois
+
+let detect () =
+  let nn = mrcnn () in
+  Graph.init nn;
+  (* Graph.load_weights nn weight_file; *)
+  (* Graph.print nn; *)
+
+  (fun src ->
+    let molded_image, image_meta, windows = Image.mold_inputs src in
+
+    (* quick hack to replace zero_padding2d *)
+    let image = N.pad ~v:0. [[3;3];[3;3];[0;0]] molded_image in
+    let image = N.expand image 4 in
+
+    let input_meta_node = get_node nn "input_image_meta" in
+    let image_meta = N.expand image_meta 2 in
+    input_meta_node.output <- Some (pack_arr image_meta);
+
+    Graph.model nn image
+  )
