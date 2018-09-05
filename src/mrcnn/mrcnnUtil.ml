@@ -19,53 +19,43 @@ let class_names =
     "sink"; "refrigerator"; "book"; "clock"; "vase"; "scissors";
     "teddy bear"; "hair drier"; "toothbrush"|]
 
-let compute_backbone_shapes image_shape strides =
-  Array.init 5 (fun i ->
-      Array.init 2 (fun j -> ceil (image_shape.(j) /. strides.(i))))
+let comp2 (a, b) (c, d) =
+  match compare a c with
+  | 0 -> compare b d
+  | x -> x
 
-let generate_anchors scale ratios img_shape feature_stride anchor_stride =
-  let ratios = N.of_array ratios [|(Array.length ratios)|] in
-  let n = (N.shape ratios).(0) in
-  let scale_arr = N.zeros (N.shape ratios) in
-  N.fill scale_arr scale;
-  let heights = N.((scale_arr / sqrt ratios) /$ 2.) in
-  let widths = N.((scale_arr * sqrt ratios) /$ 2.) in
+let gather_arr arr ix =
+  Array.init (Array.length ix) (fun i -> arr.(ix.(i)))
 
-  let shifts_y, shifts_x =
-    let nb_elts upper = (int_of_float ((upper -. 1.) /. anchor_stride)) + 1 in
-    let build_shift s = N.sequential ~a:0. ~step:anchor_stride [|nb_elts s|] in
-    N.(build_shift img_shape.(0) *$ feature_stride),
-    N.(build_shift img_shape.(1) *$ feature_stride) in
+let empty_lists n = List.init n (fun _ -> [])
 
-  let ny = (N.shape shifts_y).(0)
-  and nx = (N.shape shifts_x).(0) in
-  let decomp x = ((x / (nx * n)) mod ny, (x / n) mod nx, x mod n) in
-  let y1 = N.init [|ny * nx * n; 1|]
-             (fun x -> let (i, _, k) = decomp x in
-                       N.get shifts_y [|i|] -. N.get heights [|k|]) in
-  let x1 = N.init [|ny * nx * n; 1|]
-             (fun x -> let (_, j, k) = decomp x in
-                       N.get shifts_x [|j|] -. N.get widths [|k|]) in
-  let y2 = N.init [|ny * nx * n; 1|]
-             (fun x -> let (i, _, k) = decomp x in
-                       N.get shifts_y [|i|] +. N.get heights [|k|]) in
-  let x2 = N.init [|ny * nx * n; 1|]
-             (fun x -> let (_, j, k) = decomp x in
-                       N.get shifts_x [|j|] +. N.get widths [|k|]) in
-  let anchors = N.concatenate ~axis:1 [|y1; x1; y2; x2|] in
-  anchors
+let gather_slice ?(axis=0) t ix =
+  let dim = N.num_dims t in
+  let first = empty_lists axis
+  and last = empty_lists (dim - axis - 1) in
+  let arr = Array.init (Array.length ix)
+              (fun i -> N.get_slice (first @ ([[ix.(i)]] @ last)) t) in
+  N.concatenate ~axis arr
 
-let generate_pyramid_anchors scales ratios feature_shapes feature_strides
-      anchor_stride =
-  let anchors = Array.init (Array.length scales)
-                  (fun i -> generate_anchors scales.(i) ratios feature_shapes.(i)
-                              feature_strides.(i) anchor_stride) in
-  N.concatenate ~axis:0 anchors
+let init_slice ?(axis=0) shape slice =
+  let dim = Array.length shape in
+  let result = N.empty shape in
+  let first = empty_lists axis
+  and last = empty_lists (dim - axis - 1) in
+  let end_of_loop = shape.(axis) - 1 in
+  for i = 0 to end_of_loop do
+    N.set_slice (first @ ([[i]] @ last)) result (slice i);
+  done;
+  result
 
-let get_anchors image_shape =
-  let image_shape = Array.map float image_shape in
-  let strides = Array.map float C.backbone_strides in
-  let backbone_shapes = compute_backbone_shapes image_shape strides in
-  let anchors = generate_pyramid_anchors C.rpn_anchor_scales C.rpn_anchor_ratios
-                  backbone_shapes strides (float C.rpn_anchor_stride) in
-  Image.norm_boxes anchors image_shape
+let select_indices n cond =
+  let rec loop i acc =
+      if i >= n then List.rev acc
+      else loop (i + 1) (if cond i then (i :: acc) else acc) in
+  Array.of_list (loop 0 [])
+
+let unique_ids ids =
+  let bitset = Array.make C.num_classes 0 in
+  Array.iter (fun id -> bitset.(id) <- 1) ids;
+  select_indices C.num_classes (fun i -> bitset.(i) = 1)
+

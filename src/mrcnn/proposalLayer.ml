@@ -30,7 +30,7 @@ let proposal_layer proposal_count nms_threshold = fun inputs ->
 
   let proposals =
     let indices = Image.non_max_suppression
-                    boxes proposal_count nms_threshold in
+                    boxes scores proposal_count nms_threshold in
     let proposals = N.init_nd [|Array.length indices; 4|]
                       (fun i -> N.get boxes [|indices.(i.(0)); i.(1)|]) in
     let padding = max (proposal_count - (N.shape proposals).(0)) 0 in

@@ -7,7 +7,7 @@ module N = Dense.Ndarray.S
 module RPN = RegionProposalNetwork
 module PL = ProposalLayer
 module FPN = FeaturePyramidNetwork
-(* module DL = DetectionLayer *)
+module DL = DetectionLayer
 module C = Configuration
 
 (* Note: most function definitions only support batches of size 1, which is
@@ -31,11 +31,11 @@ let mrcnn () =
     let shape = Array.append [|(shape t.(0)).(0)|] (N.shape input) in
     pack_arr (N.reshape input shape) in
 
-  let input_image_meta =
-    lambda_array [|C.image_meta_size|] (f (N.zeros [|C.image_meta_size|]))
-        ~name:"input_image_meta" [|input_image|] in
+  let input_image_meta = input ~name:"input_image_meta" [|C.image_meta_size|] in
+    (*lambda_array [|C.image_meta_size|] (f (N.zeros [|C.image_meta_size|]))
+        ~name:"input_image_meta" [|input_image|] in*)
   let anchors = (* checked: the anchors are the same as the Keras ones *)
-    let anchors = MrcnnUtil.get_anchors C.image_shape in
+    let anchors = Image.get_anchors C.image_shape in
     lambda_array (N.shape anchors) (f anchors)
       ~name:"input_anchors" [|input_image|] in
 
@@ -86,17 +86,17 @@ let mrcnn () =
   let mrcnn_class_logits, mrcnn_class, mrcnn_bbox =
     FPN.fpn_classifier_graph rpn_rois mrcnn_feature_maps input_image_meta
       C.pool_size C.num_classes C.fpn_classif_fc_layers_size in
-(*
+
   let detection = lambda_array [|C.detection_max_instances; 6|]
                     (DL.detection_layer ()) ~name:"mrcnn_detection"
                     [|rpn_rois; mrcnn_class; mrcnn_bbox; input_image_meta|] in
   let detection_boxes = lambda_array [|C.detection_max_instances; 4|]
                           (fun x -> Maths.get_slice [[]; []; [0;4]] x.(0))
-                          detection in
+                          [|detection|] in
 
   let mrcnn_mask = FPN.build_fpn_mask_graph detection_boxes mrcnn_feature_maps
-                     input_image_meta C.mask_pool_size C.num_classes in*)
-  get_network mrcnn_class
+                     input_image_meta C.mask_pool_size C.num_classes in
+  get_network mrcnn_mask
 
 let update_image_meta nn image_meta =
   let input_meta_node = get_node nn "input_image_meta" in

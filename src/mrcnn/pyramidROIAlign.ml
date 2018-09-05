@@ -23,8 +23,8 @@ let pyramid_roi_align pool_shape = fun inputs ->
   let image_area = N.get image_shape [|0;0|] *. N.get image_shape [|0;1|] in
   let roi_level =
     let tmp = N.(log2 (sqrt (h * w) /$ (224. /. image_area))) in
-    let five = N.of_array [|5.|] [|1|]
-    and two = N.of_array [|2.|] [|1|] in
+    let five = N.create [|1|] 5.
+    and two = N.create [|1|] 2. in
     let roi_level = N.(min2 five (max2 two (tmp +$ 4.))) in
     N.squeeze ~axis:[|2|] roi_level in
 
@@ -48,18 +48,14 @@ let pyramid_roi_align pool_shape = fun inputs ->
   (* Rearrange pooled in the original order *)
   let box_to_level =
     let tmp = Array.concat (List.rev !box_to_level) in
-    Array.init (Array.length tmp) (fun i -> Array.append tmp.(i) [|i|]) in
-  let comp2 a b =
-    match compare a.(0) b.(0) with
-    | 0 -> compare a.(1) b.(1)
-    | x -> x in
-  Array.sort comp2 box_to_level;
+    Array.init (Array.length tmp) (fun i -> (tmp.(i).(0), i)) in
+  Array.sort MrcnnUtil.comp2 box_to_level;
 
   let pooled =
     let tmp = N.concatenate ~axis:0 pooled in
-    let result = N.zeros (N.shape tmp) in
+    let result = N.empty (N.shape tmp) in
     N.iteri_slice ~axis:0
-      (fun i t -> N.set_slice [[i];[];[];[]] result t) tmp;
+      (fun i t -> N.set_slice [[snd box_to_level.(i)];[];[];[]] result t) tmp;
     result in
 
   N.print pooled;

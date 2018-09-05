@@ -170,13 +170,16 @@ let intersection_over_union box1 box2 =
 
 (* Greedily returns the indices of the boxes with the highest score that don't
  * have an intersection over union greater than iou_threshold with each
- * other. Takes at most max_output_size boxes. Assumes that the boxes are
- * ordered by score.
+ * other. Takes at most max_output_size boxes.
  * TODO is it possible to use vectorised ops to speed up the computation? *)
-let non_max_suppression boxes max_output_size iou_threshold =
+let non_max_suppression boxes scores max_output_size iou_threshold =
   let n = (N.shape boxes).(0) in
+  let scores_i = Array.init n (fun i -> (N.get scores [|i|], i)) in
+  (* Sorts the indices in decreasing order of score *)
+  Array.sort (fun a b -> - MrcnnUtil.comp2 a b) scores_i;
+  let ixs = Array.init n (fun i -> snd scores_i.(i)) in
   let boxes = Array.init n (fun i ->
-                  Array.init 4 (fun j -> N.get boxes [|i; j|])) in
+                  Array.init 4 (fun j -> N.get boxes [|ixs.(i); j|])) in
   let selected = ref []
   and size = ref 0
   and i = ref 0 in
@@ -190,7 +193,7 @@ let non_max_suppression boxes max_output_size iou_threshold =
     done;
     if !ok then (
       size := !size + 1;
-      selected := !i :: !selected;
+      selected := ixs.(!i) :: !selected;
     );
     i := !i + 1;
   done;
@@ -206,7 +209,7 @@ let crop_and_resize_box ?(extrapolation_value=0.) image box shape =
                 else 0. in
   let w_scale = if crop_w > 1 then (x2 -. x1) *. (img_wf -. 1.) /. (crop_wf -. 1.)
                 else 0. in
-  let result = N.zeros [|crop_h; crop_w; dep|] in
+  let result = N.empty [|crop_h; crop_w; dep|] in
   let set_res y x d v = N.set result [|y; x; d|] v in
   for y = 0 to crop_h - 1 do
     let yf = float y in
@@ -257,9 +260,60 @@ let crop_and_resize_box ?(extrapolation_value=0.) image box shape =
  * master/tensorflow/core/kernels/crop_and_resize_op.cc#L202 *)
 let crop_and_resize image boxes crop_shape =
   let n = (N.shape boxes).(0) in
-  let results = Array.make n (N.zeros [||]) in
+  let results = Array.make n (N.empty [||]) in
   for i = 0 to n - 1 do
     let box = Array.init 4 (fun j -> N.get boxes [|i; j|]) in
     results.(i) <- crop_and_resize_box image box crop_shape;
   done;
   N.concatenate ~axis:0 results
+
+
+let compute_backbone_shapes image_shape strides =
+  Array.init 5 (fun i ->
+      Array.init 2 (fun j -> ceil (image_shape.(j) /. strides.(i))))
+
+let generate_anchors scale ratios img_shape feature_stride anchor_stride =
+  let ratios = N.of_array ratios [|(Array.length ratios)|] in
+  let n = (N.shape ratios).(0) in
+  let scale_arr = N.create (N.shape ratios) scale in
+  let heights = N.((scale_arr / sqrt ratios) /$ 2.) in
+  let widths = N.((scale_arr * sqrt ratios) /$ 2.) in
+
+  let shifts_y, shifts_x =
+    let nb_elts upper = (int_of_float ((upper -. 1.) /. anchor_stride)) + 1 in
+    let build_shift s = N.sequential ~a:0. ~step:anchor_stride [|nb_elts s|] in
+    N.(build_shift img_shape.(0) *$ feature_stride),
+    N.(build_shift img_shape.(1) *$ feature_stride) in
+
+  let ny = (N.shape shifts_y).(0)
+  and nx = (N.shape shifts_x).(0) in
+  let decomp x = ((x / (nx * n)) mod ny, (x / n) mod nx, x mod n) in
+  let y1 = N.init [|ny * nx * n; 1|]
+             (fun x -> let (i, _, k) = decomp x in
+                       N.get shifts_y [|i|] -. N.get heights [|k|]) in
+  let x1 = N.init [|ny * nx * n; 1|]
+             (fun x -> let (_, j, k) = decomp x in
+                       N.get shifts_x [|j|] -. N.get widths [|k|]) in
+  let y2 = N.init [|ny * nx * n; 1|]
+             (fun x -> let (i, _, k) = decomp x in
+                       N.get shifts_y [|i|] +. N.get heights [|k|]) in
+  let x2 = N.init [|ny * nx * n; 1|]
+             (fun x -> let (_, j, k) = decomp x in
+                       N.get shifts_x [|j|] +. N.get widths [|k|]) in
+  let anchors = N.concatenate ~axis:1 [|y1; x1; y2; x2|] in
+  anchors
+
+let generate_pyramid_anchors scales ratios feature_shapes feature_strides
+      anchor_stride =
+  let anchors = Array.init (Array.length scales)
+                  (fun i -> generate_anchors scales.(i) ratios feature_shapes.(i)
+                              feature_strides.(i) anchor_stride) in
+  N.concatenate ~axis:0 anchors
+
+let get_anchors image_shape =
+  let image_shape = Array.map float image_shape in
+  let strides = Array.map float C.backbone_strides in
+  let backbone_shapes = compute_backbone_shapes image_shape strides in
+  let anchors = generate_pyramid_anchors C.rpn_anchor_scales C.rpn_anchor_ratios
+                  backbone_shapes strides (float C.rpn_anchor_stride) in
+  norm_boxes anchors image_shape
