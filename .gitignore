@@ -3,6 +3,8 @@ _build/*
 *.native
 *.h5
 *.hdf5
+*.weights
+*.network
 *#
 .#*
 current_network.txt

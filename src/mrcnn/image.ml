@@ -41,11 +41,22 @@ let img_of_ndarray arr =
   done;
   Images.Rgb24 img
 
+
+let camlimg_to_ndarray img =
+  let comp k n = (n lsr ((2 - k) lsl 3)) land 0x0000FF in
+  (* Should avoid using Graphics? TODO Test how long it takes *)
+  let img_arr = Graphic_image.array_of_image img in
+  let h, w = Array.length img_arr, Array.length img_arr.(0) in
+  N.init_nd [|h; w; 3|]
+    (fun t -> float (comp t.(2) img_arr.(t.(0)).(t.(1))))
+
+let img_to_ndarray src =
+  let img = Images.load src [] in
+  camlimg_to_ndarray img
+
 (* Converts the file src to an Ndarray of colors RGB. Keeps the original scale
  * and pads with 0's if necessary. *)
 let resize ?w ?h src =
-  let comp k n =
-    (n lsr ((2 - k) lsl 3)) land 0x0000FF in
   let img = Images.load src [] in (* load parameters???? *)
   let img_w, img_h = Images.size img in
   let w = match w with | Some w -> w | None -> img_w in
@@ -61,11 +72,7 @@ let resize ?w ?h src =
   let img = match img with
     | Rgb24 map -> Rgb24.resize None map window_w window_h
     | _ -> invalid_arg "not implemented yet" in (* TODO *)
-  let img_arr =
-    (* Should avoid using Graphics? TODO Test how long it takes *)
-    let img_arr = Graphic_image.array_of_image (Rgb24 img) in
-    N.init_nd [|window_h; window_w; 3|]
-      (fun t -> float (comp t.(2) img_arr.(t.(0)).(t.(1)))) in
+  let img_arr = camlimg_to_ndarray (Rgb24 img) in
   let top_pad, left_pad = (h - window_h) / 2, (w - window_w) / 2 in
   let bottom_pad, right_pad = h - window_h - top_pad, w - window_w - left_pad in
   let padding = [[top_pad; bottom_pad]; [left_pad; right_pad]; [0; 0]] in
