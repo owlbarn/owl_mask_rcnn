@@ -20,7 +20,7 @@ let pyramid_roi_align pool_shape = fun inputs ->
   and w = N.(x2 - x1) in
   let image_shape = (Image.parse_image_meta image_meta).image_shape in
   (* Shape of the first image of batch, they must all have the same size. *)
-  let image_area = N.get image_shape [|0;0|] *. N.get image_shape [|0;1|] in
+  let image_area = float (image_shape.(0) * image_shape.(1)) in
   let roi_level =
     let tmp = N.(log2 (sqrt (h * w) /$ (224. /. image_area))) in
     let five = N.create [|1|] 5.

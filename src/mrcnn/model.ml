@@ -82,26 +82,114 @@ let mrcnn () =
     let prop_f = PL.proposal_layer C.post_nms_rois C.rpn_nms_threshold in
     lambda_array [|C.post_nms_rois; 4|] prop_f ~name:"ROI"
       [|rpn_class; rpn_bbox; anchors|] in
-
-  let mrcnn_class_logits, mrcnn_class, mrcnn_bbox =
+  (*
+  let _, mrcnn_class, mrcnn_bbox =
     FPN.fpn_classifier_graph rpn_rois mrcnn_feature_maps input_image_meta
       C.pool_size C.num_classes C.fpn_classif_fc_layers_size in
 
-  let detection = lambda_array [|C.detection_max_instances; 6|]
+  let detections = lambda_array [|C.detection_max_instances; 6|]
                     (DL.detection_layer ()) ~name:"mrcnn_detection"
                     [|rpn_rois; mrcnn_class; mrcnn_bbox; input_image_meta|] in
   let detection_boxes = lambda_array [|C.detection_max_instances; 4|]
                           (fun x -> Maths.get_slice [[]; []; [0;4]] x.(0))
-                          [|detection|] in
+                          [|detections|] in
 
   let mrcnn_mask = FPN.build_fpn_mask_graph detection_boxes mrcnn_feature_maps
-                     input_image_meta C.mask_pool_size C.num_classes in
-  get_network mrcnn_mask
+                     input_image_meta C.mask_pool_size C.num_classes in *)
+  get_network rpn_rois
+
+
+(* *** Input and Output Processing *** *)
 
 let update_image_meta nn image_meta =
   let input_meta_node = get_node nn "input_image_meta" in
   let image_meta = N.expand image_meta 2 in
   input_meta_node.output <- Some (pack_arr image_meta)
+
+let get_output nn node_name =
+  let node = get_node nn node_name in
+  match node.output with
+  | Some x -> unpack_arr x
+  | None -> invalid_arg (node_name ^ " outputs have not been computed.")
+
+(* Reformats the results of the neural network in a more suitable format.
+ * detections: [N, [y1, x1, y2, x2, class_id, score]]
+ * mrcnn_mask: [N, height, width, num_classes]
+ * original_image_shape: [H, W, C]
+ * image_shape: [H, W, C]
+ * window: [y1, x1, y2, x2] *)
+let unmold_detections detections mrcnn_mask original_image_shape image_shape
+      window =
+  (* Finds number of detections (detections is padded with zero but when valid,
+   * class_id should be >= 1. Should be called on a single batch slice.
+   * detections: *)
+  let len = (N.shape detections).(0) in
+  let n = let rec loop i =
+            if i >= len then len
+            else if N.get detections [|i; 4|] = 0. then i
+            else loop (i + 1) in
+          loop 0 in
+
+  let boxes = N.get_slice [[0;n-1];[0;3]] detections in
+  let window = Image.norm_boxes
+                 (N.of_array (Array.map float window) [|4|]) image_shape in
+  let wy1, wx1, wy2, wx2 =
+    N.(window.%{[|0|]}, window.%{[|1|]}, window.%{[|2|]}, window.%{[|3|]}) in
+  let shift = N.of_array [|wy1; wx1; wy1; wx1|] [|4|] in
+  let wh = wy2 -. wy1
+  and ww = wx2 -. wx1 in
+  let scale = N.of_array [|wh; ww; wh; ww|] [|4|] in
+  let boxes =
+    let tmp_boxes = N.((boxes - shift) / scale) in
+    Image.denorm_boxes tmp_boxes original_image_shape in
+
+  (* Keep only boxes with area > 0 *)
+  let keep = MrcnnUtil.select_indices n (fun i ->
+                 N.((boxes.%{[|i;2|]} -. boxes.%{[|i;0|]}) *.
+                      (boxes.%{[|i;3|]} -. boxes.%{[|i;1|]})) > 0.) in
+  let n = Array.length keep in
+  let boxes = MrcnnUtil.gather_slice ~axis:0 boxes keep in
+  (* Extracts boxes, class_ids, scores and masks *)
+  let class_ids = Array.init n (fun i ->
+                      int_of_float (N.get detections [|keep.(i); 4|])) in
+  let masks =
+    let mask_h, mask_w = let sh = N.shape mrcnn_mask in sh.(1), sh.(2) in
+    MrcnnUtil.init_slice ~axis:0 [|n; mask_h; mask_w|]
+      (fun i -> N.get_slice [[keep.(i)];[];[];[class_ids.(i)]] mrcnn_mask
+                |> N.squeeze ~axis:[|3|]) in
+  let scores = MrcnnUtil.gather_slice ~axis:0
+                 (N.get_slice [[];[5]] detections) keep in
+
+  let full_masks =
+    let h, w = original_image_shape.(0), original_image_shape.(1) in
+    MrcnnUtil.init_slice ~axis:0 [|n; h; w|] (fun i ->
+        let mask = N.get_slice [[i];[];[]] masks |> N.squeeze ~axis:[|0|] in
+        let box = N.get_slice [[i];[];[]] boxes |> N.squeeze ~axis:[|0|] in
+        Image.unmold_mask mask box original_image_shape) in
+
+  boxes, class_ids, scores, full_masks
+
+type results = {
+    rois: N.arr;
+    class_ids: int array;
+    scores: N.arr;
+    masks: N.arr;
+  }
+
+let extract_features nn image_meta =
+  let detections = get_output nn "mrcnn_detection" in
+  let mrcnn_masks = get_output nn "mrcnn_mask" in
+  let meta = Image.parse_image_meta image_meta in
+
+  let rois, class_ids, scores, masks =
+    unmold_detections
+      (N.squeeze ~axis:[|0|] detections)
+      (N.squeeze ~axis:[|0|] mrcnn_masks)
+      meta.original_image_shape
+      meta.image_shape
+      meta.window in
+  { rois; class_ids; scores; masks; }
+
 
 let detect () =
   let nn = mrcnn () in
@@ -120,5 +208,7 @@ let detect () =
      * network. *)
     update_image_meta nn image_meta;
 
-    Graph.model nn image
+    let _ = Graph.model nn image in
+    let results = extract_features nn image_meta in
+    results
   )

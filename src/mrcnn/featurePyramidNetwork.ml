@@ -35,7 +35,8 @@ let fpn_classifier_graph rois feature_maps image_meta
 let build_fpn_mask_graph rois feature_maps image_meta pool_size num_classes =
   let pyramid_fun = PRA.pyramid_roi_align [|pool_size; pool_size|] in
   lambda_array [|C.detection_max_instances; pool_size; pool_size; 256|]
-    pyramid_fun ~name:"roi_align_mask" (Array.append [|rois; image_meta|] feature_maps)
+    pyramid_fun ~name:"roi_align_mask"
+    (Array.append [|rois; image_meta|] feature_maps)
   |> conv2d [|3; 3; 256; 256|] [|1; 1|] ~padding:SAME ~name:"mrcnn_mask_conv1"
   |> normalisation ~name:"mrcnn_mask_bn1"
   |> activation Activation.Relu

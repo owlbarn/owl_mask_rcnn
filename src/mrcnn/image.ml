@@ -19,10 +19,10 @@ let add_rgb img rgb =
   img
 
 let preprocess img =
-  add_rgb img [|-123.68; -116.779; -103.939|]
+  add_rgb img (Array.map (~-.) C.mean_pixel)
 
 let convert_back img =
-  add_rgb img [|123.68; 116.779; 103.939|]
+  add_rgb img C.mean_pixel
 
 let save dest format img =
   Images.save dest (Some format) [] img
@@ -75,22 +75,27 @@ let resize ?w ?h src =
   image, [|img_h; img_w; 3|], window, scale, padding
 
 type image_meta =
-  { image_id             : Dense.Ndarray.S.arr;
-    original_image_shape : Dense.Ndarray.S.arr;
-    image_shape          : Dense.Ndarray.S.arr;
-    window               : Dense.Ndarray.S.arr;
-    scale                : Dense.Ndarray.S.arr;
-    active_class_ids     : Dense.Ndarray.S.arr;
+  { image_id             : int;
+    original_image_shape : int array;
+    image_shape          : int array;
+    window               : int array;
+    scale                : float;
+    active_class_ids     : int array;
   }
 
-
+(* Assumes batch_size of 1. *)
 let parse_image_meta meta =
-  { image_id             = N.get_slice [[];[0]]     meta;
-    original_image_shape = N.get_slice [[];[1;3]]   meta;
-    image_shape          = N.get_slice [[];[4;6]]   meta;
-    window               = N.get_slice [[];[7;10]]  meta;
-    scale                = N.get_slice [[];[11]]    meta;
-    active_class_ids     = N.get_slice [[];[12;-1]] meta;
+  let open N in
+  { image_id             = int_of_float (meta.%{[|0;0|]});
+    original_image_shape = Array.map int_of_float
+                             (to_array (get_slice [[0];[1;3]] meta));
+    image_shape          = Array.map int_of_float
+                             (to_array (get_slice [[0];[4;6]] meta));
+    window               = Array.map int_of_float
+                             (to_array (get_slice [[];[7;10]] meta));
+    scale                = meta.%{[|0;11|]};
+    active_class_ids     = Array.map int_of_float
+                             (to_array (N.get_slice [[0];[12;-1]] meta));
   }
 
 let compose_image_meta image_id original_shape image_shape window scale =
@@ -151,10 +156,16 @@ let clip_boxes boxes window =
 
 (* this should be changed if batch size > 1 *)
 let norm_boxes boxes shape =
-  let h, w = shape.(0), shape.(1) in
-  let scale = N.((of_array [|h;w;h;w|] [|4|]) -$ 1.) in
-  let shift = N.of_array [|0.;0.;1.;1.|] [|4|] in
+  let h, w = float shape.(0), float shape.(1) in
+  let scale = N.((of_array [|h; w; h; w|] [|4|]) -$ 1.) in
+  let shift = N.of_array [|0.; 0.; 1.; 1.|] [|4|] in
   N.((boxes - shift) / scale)
+
+let denorm_boxes boxes shape =
+  let h, w = float shape.(0), float shape.(1) in
+  let scale = N.((of_array [|h; w; h; w|] [|4|]) -$ 1.) in
+  let shift = N.of_array [|0.; 0.; 1.; 1.|] [|4|] in
+  N.(round ((boxes * scale) + shift))
 
 let area box = (box.(2) -. box.(0)) *. (box.(3) -. box.(1))
 
@@ -270,7 +281,7 @@ let crop_and_resize image boxes crop_shape =
 
 let compute_backbone_shapes image_shape strides =
   Array.init 5 (fun i ->
-      Array.init 2 (fun j -> ceil (image_shape.(j) /. strides.(i))))
+      Array.init 2 (fun j -> ceil ((float image_shape.(j)) /. strides.(i))))
 
 let generate_anchors scale ratios img_shape feature_stride anchor_stride =
   let ratios = N.of_array ratios [|(Array.length ratios)|] in
@@ -311,9 +322,19 @@ let generate_pyramid_anchors scales ratios feature_shapes feature_strides
   N.concatenate ~axis:0 anchors
 
 let get_anchors image_shape =
-  let image_shape = Array.map float image_shape in
   let strides = Array.map float C.backbone_strides in
   let backbone_shapes = compute_backbone_shapes image_shape strides in
   let anchors = generate_pyramid_anchors C.rpn_anchor_scales C.rpn_anchor_ratios
                   backbone_shapes strides (float C.rpn_anchor_stride) in
   norm_boxes anchors image_shape
+
+let unmold_mask mask box image_shape =
+  let threshold = 0.5 in
+  let box_i i = int_of_float N.(box.%{[|i|]}) in
+  let y1, x1, y2, x2 = box_i 0, box_i 1, box_i 2, box_i 3 in
+  let mask =
+    let tmp = crop_and_resize_box mask [|0.; 0.; 1.; 1.|] [|y2 - y1; x2 - x1|] in
+    N.map (fun elt -> if elt >= threshold then 1. else 0.) tmp in
+  let full_mask = N.zeros image_shape in
+  N.set_slice [[y1; y2 - 1]; [x1; x2 - 1]] full_mask mask;
+  full_mask

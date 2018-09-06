@@ -68,7 +68,7 @@ let refine_detections rois probs deltas window =
     MrcnnUtil.init_slice ~axis:0 [|Array.length nms_keep; 6|] slice in
 
   let pad_bottom = C.detection_max_instances - (N.shape detections).(0) in
-  N.pad ~v:0. [[0;pad_bottom];[0;0]] detections
+  N.pad ~v:0. [[0;pad_bottom]; [0;0]] detections
 
 
 let detection_layer () = fun inputs ->
@@ -80,8 +80,9 @@ let detection_layer () = fun inputs ->
 
   let meta = Image.parse_image_meta image_meta in
   let image_shape = meta.image_shape in
-  let h, w = N.get image_shape [|0;0|], N.get image_shape [|0;1|] in
-  let window = Image.norm_boxes meta.window [|h;w|] in
+  let window = Array.map float (meta.window) in
+  let h, w = image_shape.(0), image_shape.(1) in
+  let window = Image.norm_boxes (N.of_array window [|4|]) [|h; w|] in
 
   let detections_batch = refine_detections rois mrcnn_class mrcnn_bbox window in
   let reshaped_detections = N.reshape detections_batch
