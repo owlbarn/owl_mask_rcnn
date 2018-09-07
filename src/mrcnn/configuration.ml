@@ -28,7 +28,8 @@ let rpn_nms_threshold = 0.7
 
 let post_nms_rois = 1000
 
-let image_dim = 1024
+let image_dim = 256 (* change back to 1024 to test with weights?
+                     * Or not? Would be nice. *)
 
 (* RGB *)
 let mean_pixel = [|123.7; 116.8; 103.9|]

@@ -1,6 +1,4 @@
 open Owl
-open Owl_types
-open Neural
 open Neural.S
 open Neural.S.Graph
 

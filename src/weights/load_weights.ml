@@ -19,9 +19,7 @@ let bn_var = "moving_variance:0"
 let lin_W = "kernel:0"
 let lin_b = "bias:0"
 
-let () =
-  let nn = Model.mrcnn () in
-  Graph.init nn;
+let load nn =
   let nodes = nn.topo in
   Array.iter (fun n ->
       let param = Neuron.mkpar n.neuron in

@@ -8,11 +8,12 @@ module C = Configuration
 
 let refine_detections rois probs deltas window =
   let n = (N.shape rois).(0) in
+  (* Most likely proposal for each ROI *)
   let class_ids = Array.init n
                     (fun i -> (snd (N.max_i (N.get_slice [[i];[]] rois))).(1)) in
   let indices = Array.init n
                   (fun i -> [|i; class_ids.(i)|]) in
-  let class_scores = N.get_index probs indices in
+  let class_scores = MrcnnUtil.gather_elts probs indices in
   let deltas_specific =
     N.init_nd [|n; 4|]
       (fun t -> N.get deltas [|t.(0); class_ids.(t.(0)); t.(1)|]) in
@@ -25,7 +26,7 @@ let refine_detections rois probs deltas window =
    * threshold. *)
   let keep =
     let cond i = class_ids.(i) > 0 &&
-                   class_scores.(i) > C.detection_min_confidence in
+                   class_scores.(i) > 0.008 (*C.detection_min_confidence*) in
     MrcnnUtil.select_indices n cond in
 
   (* Per class NMS *)
@@ -43,8 +44,6 @@ let refine_detections rois probs deltas window =
         (N.of_array (MrcnnUtil.gather_arr pre_nms_scores ixs) [|Array.length ixs|])
         C.detection_max_instances C.detection_nms_threshold in
     MrcnnUtil.gather_arr keep (MrcnnUtil.gather_arr ixs class_keep) in
-    (*Array.init C.detection_max_instances
-      (fun i -> if i < Array.length class_keep then class_keep.(i) else -1) in*)
 
   let nms_keep =
     let tmp = Array.map nms_keep_map unique_pre_nms_class_ids in
@@ -70,15 +69,14 @@ let refine_detections rois probs deltas window =
   let pad_bottom = C.detection_max_instances - (N.shape detections).(0) in
   N.pad ~v:0. [[0;pad_bottom]; [0;0]] detections
 
-
+(* To change if batch_size > 1 *)
 let detection_layer () = fun inputs ->
   let inputs = Array.map AD.unpack_arr inputs in
-  let rois = inputs.(0)
-  and mrcnn_class = inputs.(1)
-  and mrcnn_bbox = inputs.(2)
-  and image_meta = inputs.(3) in
+  let rois = N.squeeze ~axis:[|0|] inputs.(0)
+  and mrcnn_class = N.squeeze ~axis:[|0|] inputs.(1)
+  and mrcnn_bbox = N.squeeze ~axis:[|0|] inputs.(2) in
 
-  let meta = Image.parse_image_meta image_meta in
+  let meta = Image.parse_image_meta inputs.(3) in
   let image_shape = meta.image_shape in
   let window = Array.map float (meta.window) in
   let h, w = image_shape.(0), image_shape.(1) in

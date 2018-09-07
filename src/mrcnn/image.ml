@@ -78,7 +78,6 @@ let resize ?w ?h src =
   let padding = [[top_pad; bottom_pad]; [left_pad; right_pad]; [0; 0]] in
   let window = [|top_pad; left_pad; window_h + top_pad; window_w + left_pad|] in
   let image = N.pad ~v:0. padding img_arr in
-  Array.iter (fun i -> Printf.printf "%d %!" i) (N.shape image);
   image, [|img_h; img_w; 3|], window, scale, padding
 
 type image_meta =
@@ -192,6 +191,7 @@ let intersection_over_union box1 box2 =
  * TODO is it possible to use vectorised ops to speed up the computation? *)
 let non_max_suppression boxes scores max_output_size iou_threshold =
   let n = (N.shape boxes).(0) in
+  assert (n = (N.shape scores).(0));
   let scores_i = Array.init n (fun i -> (N.get scores [|i|], i)) in
   (* Sorts the indices in decreasing order of score *)
   Array.sort (fun a b -> - MrcnnUtil.comp2 a b) scores_i;
@@ -219,7 +219,7 @@ let non_max_suppression boxes scores max_output_size iou_threshold =
 
 let crop_and_resize_box ?(extrapolation_value=0.) image box shape =
   let y1, x1, y2, x2 = box.(0), box.(1), box.(2), box.(3) in
-  let img_h, img_w, dep = let sh = (N.shape image) in sh.(0), sh.(1), sh.(2) in
+  let img_h, img_w, dep = let sh = (N.shape image) in sh.(1), sh.(2), sh.(3) in
   let img_hf, img_wf = float img_h, float img_w in
   let crop_h, crop_w = shape.(0), shape.(1) in
   let crop_hf, crop_wf = float crop_h, float crop_w in
@@ -227,8 +227,9 @@ let crop_and_resize_box ?(extrapolation_value=0.) image box shape =
                 else 0. in
   let w_scale = if crop_w > 1 then (x2 -. x1) *. (img_wf -. 1.) /. (crop_wf -. 1.)
                 else 0. in
-  let result = N.empty [|crop_h; crop_w; dep|] in
-  let set_res y x d v = N.set result [|y; x; d|] v in
+  let result = N.empty [|1; crop_h; crop_w; dep|] in
+  let set_res y x d v = N.set result [|0; y; x; d|] v in
+
   for y = 0 to crop_h - 1 do
     let yf = float y in
     let in_y = if crop_h > 1 then y1 *. (img_hf -. 1.) +. yf *. h_scale
@@ -257,10 +258,10 @@ let crop_and_resize_box ?(extrapolation_value=0.) image box shape =
           and right_x = int_of_float (ceil in_x) in
           let x_lerp = in_x -. (floor in_x) in
           for d = 0 to dep - 1 do
-            let top_left = N.get image [|top_y; left_x; d|] in
-            let top_right = N.get image [|top_y; right_x; d|] in
-            let bottom_left = N.get image [|bottom_y; left_x; d|] in
-            let bottom_right = N.get image [|bottom_y; right_x; d|] in
+            let top_left = N.get image [|0; top_y; left_x; d|] in
+            let top_right = N.get image [|0; top_y; right_x; d|] in
+            let bottom_left = N.get image [|0; bottom_y; left_x; d|] in
+            let bottom_right = N.get image [|0; bottom_y; right_x; d|] in
             let top = top_left +. (top_right -. top_left) *. x_lerp in
             let bottom = bottom_left +. (bottom_right -. bottom_left) *. x_lerp in
             set_res y x d (top +. (bottom -. top) *. y_lerp);
