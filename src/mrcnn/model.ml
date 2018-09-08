@@ -92,15 +92,15 @@ let mrcnn image_meta =
                     [|rpn_rois; mrcnn_class; mrcnn_bbox; input_image_meta|] in
   let detection_boxes = lambda_array [|C.detection_max_instances; 4|]
                           (fun t ->
-                            (* MrcnnUtil.print_array (shape t.(0)); *)
+                            MrcnnUtil.print_array (shape t.(0));
                             let x = Maths.get_slice [[]; []; [0;3]] t.(0) in
                             (* MrcnnUtil.print_array (shape x); *)
                             x)
                           [|detections|] in
-  (*
+
   let mrcnn_mask = FPN.build_fpn_mask_graph detection_boxes mrcnn_feature_maps
-                     input_image_meta C.mask_pool_size C.num_classes in *)
-  get_network detection_boxes
+                     input_image_meta C.mask_pool_size C.num_classes in
+  get_network mrcnn_mask
 
 
 (* *** Input and Output Processing *** *)

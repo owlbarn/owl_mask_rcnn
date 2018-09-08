@@ -43,23 +43,29 @@ let build_fpn_mask_graph rois feature_maps image_meta pool_size num_classes =
   lambda_array [|C.detection_max_instances; pool_size; pool_size; 256|]
     pyramid_fun ~name:"roi_align_mask"
     (Array.append [|rois; image_meta|] feature_maps)
-  |> conv2d [|3; 3; 256; 256|] [|1; 1|] ~padding:SAME ~name:"mrcnn_mask_conv1"
-  |> normalisation ~name:"mrcnn_mask_bn1"
+  |> U.time_distributed (conv2d [|3; 3; 256; 256|] [|1; 1|]
+                           ~padding:SAME ~name:"mrcnn_mask_conv1")
+  |> U.time_distributed (normalisation ~name:"mrcnn_mask_bn1")
   |> activation Activation.Relu
 
-  |> conv2d [|3; 3; 256; 256|] [|1; 1|] ~padding:SAME ~name:"mrcnn_mask_conv2"
-  |> normalisation ~name:"mrcnn_mask_bn2"
+  |> U.time_distributed (conv2d [|3; 3; 256; 256|] [|1; 1|]
+                           ~padding:SAME ~name:"mrcnn_mask_conv2")
+  |> U.time_distributed (normalisation ~name:"mrcnn_mask_bn2")
   |> activation Activation.Relu
 
-  |> conv2d [|3; 3; 256; 256|] [|1; 1|] ~padding:SAME ~name:"mrcnn_mask_conv3"
-  |> normalisation ~name:"mrcnn_mask_bn3"
+  |> U.time_distributed (conv2d [|3; 3; 256; 256|] [|1; 1|]
+                           ~padding:SAME ~name:"mrcnn_mask_conv3")
+  |> U.time_distributed (normalisation ~name:"mrcnn_mask_bn3")
   |> activation Activation.Relu
 
-  |> conv2d [|3; 3; 256; 256|] [|1; 1|] ~padding:SAME ~name:"mrcnn_mask_conv4"
-  |> normalisation ~name:"mrcnn_mask_bn4"
+  |> U.time_distributed (conv2d [|3; 3; 256; 256|] [|1; 1|]
+                           ~padding:SAME ~name:"mrcnn_mask_conv4")
+  |> U.time_distributed (normalisation ~name:"mrcnn_mask_bn4")
   |> activation Activation.Relu
 
-  |> transpose_conv2d [|2; 2; 256; 256|] [|2; 2|]
-       ~act_typ:Activation.Relu ~name:"mrcnn_mask_deconv"
-  |> conv2d [|1; 1; 256; num_classes|] [|1; 1|]
-       ~act_typ:Activation.Sigmoid ~name:"mrcnn_mask"
+  |> U.time_distributed
+       (transpose_conv2d [|2; 2; 256; 256|] [|2; 2|] ~padding:VALID
+          ~act_typ:Activation.Relu ~name:"mrcnn_mask_deconv")
+  |> U.time_distributed
+       (conv2d [|1; 1; 256; num_classes|] [|1; 1|] ~padding:VALID
+          ~act_typ:Activation.Sigmoid ~name:"mrcnn_mask")
