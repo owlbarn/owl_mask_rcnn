@@ -29,8 +29,8 @@ let eval src =
     Printf.printf "No objects detected on the picture :'(\n"
   else
     let img_arr = Image.img_to_ndarray src in
-    Visualise.display_masks img_arr rois masks;
     let filename = List.hd (List.rev (String.split_on_char '/' src)) in
+    Visualise.display_masks img_arr rois masks;
     Image.save ("res/" ^ filename) Images.Jpeg (Image.img_of_ndarray img_arr);
     Array.iteri (fun i id ->
         Printf.printf "%s: %.3f\n" classes.(id) (N.get scores [|i|]))
