@@ -26,6 +26,11 @@ let print_array arr =
   Array.iter (fun i -> Printf.printf "%d " i) arr;
   Printf.printf "|]\n%!"
 
+let print_array_float arr =
+  Printf.printf "[| ";
+  Array.iter (fun i -> Printf.printf "%0.3f " i) arr;
+  Printf.printf "|]\n%!"
+
 let comp2 (a, b) (c, d) =
   match compare a c with
   | 0 -> compare b d
@@ -36,6 +41,12 @@ let gather_arr arr ix =
 
 let gather_elts t ix =
   Array.init (Array.length ix) (fun i -> N.get t ix.(i))
+
+let gather_elts_nd t ix =
+  N.init [|Array.length ix|] (fun i -> N.get t ix.(i))
+
+let gather_elts_nd_arr t ix =
+  N.init [|Array.length ix|] (fun i -> N.get t [|ix.(i)|])
 
 let empty_lists n = List.init n (fun _ -> [])
 

@@ -25,8 +25,7 @@ let mrcnn image_meta =
   (* The next two layers should be inputs of the network. Since Owl does not
    * support multi-inputs networks, we define them as input_image successors.
    * We can note that input_image_meta depends only on the size of the input
-   * image. To avoid making the whole network dependent on the size of the
-   * input, it has to be updated after the network is built. *)
+   * image. *)
   let f input t =
     let shape = Array.append [|(shape t.(0)).(0)|] (N.shape input) in
     pack_arr (N.reshape input shape) in
@@ -91,16 +90,12 @@ let mrcnn image_meta =
                     (DL.detection_layer ()) ~name:"mrcnn_detection"
                     [|rpn_rois; mrcnn_class; mrcnn_bbox; input_image_meta|] in
   let detection_boxes = lambda_array [|C.detection_max_instances; 4|]
-                          (fun t ->
-                            MrcnnUtil.print_array (shape t.(0));
-                            let x = Maths.get_slice [[]; []; [0;3]] t.(0) in
-                            (* MrcnnUtil.print_array (shape x); *)
-                            x)
+                          (fun t -> Maths.get_slice [[]; []; [0;3]] t.(0))
                           [|detections|] in
 
   let mrcnn_mask = FPN.build_fpn_mask_graph detection_boxes mrcnn_feature_maps
                      input_image_meta C.mask_pool_size C.num_classes in
-  get_network mrcnn_mask
+  get_network ~name:"Mask R-CNN" mrcnn_mask
 
 
 (* *** Input and Output Processing *** *)
@@ -114,7 +109,7 @@ let get_output nn node_name =
   let node = get_node nn node_name in
   match node.output with
   | Some x -> unpack_arr x
-  | None -> invalid_arg (node_name ^ " outputs have not been computed.")
+  | None -> invalid_arg (node_name ^ " node outputs can't be found.")
 
 (* Reformats the results of the neural network in a more suitable format.
  * detections: [N, [y1, x1, y2, x2, class_id, score]]
@@ -162,14 +157,15 @@ let unmold_detections detections mrcnn_mask original_image_shape image_shape
       (fun i -> N.get_slice [[keep.(i)];[];[];[class_ids.(i)]] mrcnn_mask
                 |> N.squeeze ~axis:[|3|]) in
   let scores = MrcnnUtil.gather_slice ~axis:0
-                 (N.get_slice [[];[5]] detections) keep in
+                 (N.get_slice [[];[5]] detections) keep
+               |> N.squeeze ~axis:[|1|] in
 
   let full_masks =
     let h, w = original_image_shape.(0), original_image_shape.(1) in
     MrcnnUtil.init_slice ~axis:0 [|n; h; w|] (fun i ->
         let mask = N.get_slice [[i];[];[]] masks |> N.squeeze ~axis:[|0|] in
-        let box = N.get_slice [[i];[];[]] boxes |> N.squeeze ~axis:[|0|] in
-        Image.unmold_mask mask box original_image_shape) in
+        let box = N.get_slice [[i];[]] boxes |> N.squeeze ~axis:[|0|] in
+        N.expand (Image.unmold_mask mask box original_image_shape) 3) in
 
   boxes, class_ids, scores, full_masks
 
@@ -183,8 +179,7 @@ type results = {
 let extract_features nn image_meta =
   let detections = get_output nn "mrcnn_detection" in
   let mrcnn_masks = get_output nn "mrcnn_mask" in
-  let meta = Image.parse_image_meta image_meta in
-
+  let meta = Image.parse_image_meta (N.expand image_meta 2) in
   let rois, class_ids, scores, masks =
     unmold_detections
       (N.squeeze ~axis:[|0|] detections)
@@ -197,19 +192,21 @@ let extract_features nn image_meta =
 
 let detect src =
   let molded_image, image_meta, windows = Image.mold_inputs src in
-  let nn = mrcnn image_meta in (* depends only on the size of the image... *)
-  Graph.init nn;
-  (* Graph.load_weights nn weight_file; *)
+  (* let molded_image = N.of_array Debug.image_debug [|256; 256; 3|] in *)
+  let nn = mrcnn image_meta in (* depends only on the size of the image *)
+  Printf.printf "Graph built!\n%!";
+  Load_weights.load nn;
+  Printf.printf "Weights loaded!\n%!";
   (* Graph.print nn; *)
 
   (fun () ->
-    (* quick hack to replace zero_padding2d *)
+    (* quick hack to replace padding2d *)
     let image = N.pad ~v:0. [[3;3];[3;3];[0;0]] molded_image in
     let image = N.expand image 4 in
 
-    let t = Graph.model nn image in
-    t
-    (*
+    let t = Graph.run (pack_arr image) nn in
+    Printf.printf "Computation done!\n%!";
+    (* N.print ~max_row:500 ~max_col:20 (get_output nn "mrcnn_bbox"); *)
     let results = extract_features nn image_meta in
-    results *)
+    results
   )

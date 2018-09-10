@@ -98,7 +98,7 @@ let parse_image_meta meta =
     image_shape          = Array.map int_of_float
                              (to_array (get_slice [[0];[4;6]] meta));
     window               = Array.map int_of_float
-                             (to_array (get_slice [[];[7;10]] meta));
+                             (to_array (get_slice [[0];[7;10]] meta));
     scale                = meta.%{[|0;11|]};
     active_class_ids     = Array.map int_of_float
                              (to_array (N.get_slice [[0];[12;-1]] meta));
@@ -145,7 +145,8 @@ let apply_box_deltas boxes deltas =
   and x1 = center_x - half_width
   and y2 = center_y + half_height
   and x2 = center_x + half_width in
-  concatenate ~axis:1 [|y1; x1; y2; x2|]
+  let result = concatenate ~axis:1 [|y1; x1; y2; x2|] in
+  result
 
 (* Clip boxes to image boundaries.
  * Boxes: [N, [y1, x1, y2, x2]], window: [y1, x1, y2, x2]. *)
@@ -198,28 +199,28 @@ let non_max_suppression boxes scores max_output_size iou_threshold =
   let ixs = Array.init n (fun i -> snd scores_i.(i)) in
   let boxes = Array.init n (fun i ->
                   Array.init 4 (fun j -> N.get boxes [|ixs.(i); j|])) in
-  let selected = ref []
+  let selected = Array.make n (-1)
   and size = ref 0
   and i = ref 0 in
   while !i < n && !size < max_output_size do
     let ok = ref true
     and j = ref (!size - 1) in
     while !ok && !j >= 0 do
-      if intersection_over_union boxes.(!i) boxes.(!j) > iou_threshold then
+      if intersection_over_union boxes.(!i) boxes.(selected.(!j)) > iou_threshold then
         ok := false;
       j := !j - 1;
     done;
     if !ok then (
+      selected.(!size) <- !i;
       size := !size + 1;
-      selected := ixs.(!i) :: !selected;
     );
     i := !i + 1;
   done;
-  Array.of_list (List.rev !selected)
+  Array.map (fun i -> ixs.(i)) (Array.sub selected 0 !size)
 
 let crop_and_resize_box ?(extrapolation_value=0.) image box shape =
   let y1, x1, y2, x2 = box.(0), box.(1), box.(2), box.(3) in
-  let img_h, img_w, dep = let sh = (N.shape image) in sh.(1), sh.(2), sh.(3) in
+  let img_h, img_w, dep = let sh = (N.shape image) in sh.(0), sh.(1), sh.(2) in
   let img_hf, img_wf = float img_h, float img_w in
   let crop_h, crop_w = shape.(0), shape.(1) in
   let crop_hf, crop_wf = float crop_h, float crop_w in
@@ -227,8 +228,8 @@ let crop_and_resize_box ?(extrapolation_value=0.) image box shape =
                 else 0. in
   let w_scale = if crop_w > 1 then (x2 -. x1) *. (img_wf -. 1.) /. (crop_wf -. 1.)
                 else 0. in
-  let result = N.empty [|1; crop_h; crop_w; dep|] in
-  let set_res y x d v = N.set result [|0; y; x; d|] v in
+  let result = N.empty [|crop_h; crop_w; dep|] in
+  let set_res y x d v = N.set result [|y; x; d|] v in
 
   for y = 0 to crop_h - 1 do
     let yf = float y in
@@ -258,10 +259,10 @@ let crop_and_resize_box ?(extrapolation_value=0.) image box shape =
           and right_x = int_of_float (ceil in_x) in
           let x_lerp = in_x -. (floor in_x) in
           for d = 0 to dep - 1 do
-            let top_left = N.get image [|0; top_y; left_x; d|] in
-            let top_right = N.get image [|0; top_y; right_x; d|] in
-            let bottom_left = N.get image [|0; bottom_y; left_x; d|] in
-            let bottom_right = N.get image [|0; bottom_y; right_x; d|] in
+            let top_left = N.get image [|top_y; left_x; d|] in
+            let top_right = N.get image [|top_y; right_x; d|] in
+            let bottom_left = N.get image [|bottom_y; left_x; d|] in
+            let bottom_right = N.get image [|bottom_y; right_x; d|] in
             let top = top_left +. (top_right -. top_left) *. x_lerp in
             let bottom = bottom_left +. (bottom_right -. bottom_left) *. x_lerp in
             set_res y x d (top +. (bottom -. top) *. y_lerp);
@@ -282,7 +283,7 @@ let crop_and_resize image boxes crop_shape =
   let results = Array.make n (N.empty [||]) in
   for i = 0 to n - 1 do
     let box = Array.init 4 (fun j -> N.get boxes [|i; j|]) in
-    results.(i) <- crop_and_resize_box image box crop_shape;
+    results.(i) <- N.expand (crop_and_resize_box image box crop_shape) 4;
   done;
   N.concatenate ~axis:0 results
 
@@ -338,11 +339,15 @@ let get_anchors image_shape =
 
 let unmold_mask mask box image_shape =
   let threshold = 0.5 in
-  let box_i i = int_of_float N.(box.%{[|i|]}) in
-  let y1, x1, y2, x2 = box_i 0, box_i 1, box_i 2, box_i 3 in
+  let y1, x1, y2, x2 =
+    let box_i i = int_of_float N.(box.%{[|i|]}) in
+    box_i 0, box_i 1, box_i 2, box_i 3 in
   let mask =
-    let tmp = crop_and_resize_box mask [|0.; 0.; 1.; 1.|] [|y2 - y1; x2 - x1|] in
-    N.map (fun elt -> if elt >= threshold then 1. else 0.) tmp in
-  let full_mask = N.zeros image_shape in
+    let tmp = crop_and_resize_box (N.expand ~hi:true mask 3)
+                [|0.; 0.; 1.; 1.|] [|y2 - y1; x2 - x1|] in
+    let tmp2 = N.squeeze  ~axis:[|2|] tmp in
+    N.map (fun elt -> if elt >= threshold then 1. else 0.) tmp2 in
+  let h, w = image_shape.(0), image_shape.(1) in
+  let full_mask = N.zeros [|h; w|] in
   N.set_slice [[y1; y2 - 1]; [x1; x2 - 1]] full_mask mask;
   full_mask

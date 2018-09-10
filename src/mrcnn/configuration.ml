@@ -5,6 +5,9 @@ module N = Dense.Ndarray.S
 
 let name = "Mask R-CNN"
 
+let image_dim = 256
+
+(* Cannot be changed at the moment. *)
 let batch_size = 1
 
 (* Strides of each layer of the FPN pyramid of Resnet101. *)
@@ -16,8 +19,6 @@ let top_down_pyramid_size = 256
 
 let num_classes = 81
 
-let num_anchors = 261888
-
 let rpn_anchor_scales = [|32.; 64.; 128.; 256.; 512.|]
 
 let rpn_anchor_ratios = [|0.5; 1.; 2.|]
@@ -27,9 +28,6 @@ let rpn_anchor_stride = 1
 let rpn_nms_threshold = 0.7
 
 let post_nms_rois = 1000
-
-let image_dim = 256 (* change back to 1024 to test with weights?
-                     * Or not? Would be nice. *)
 
 (* RGB *)
 let mean_pixel = [|123.7; 116.8; 103.9|]

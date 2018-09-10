@@ -7,51 +7,53 @@ open Neural.S.Graph
  * https://github.com/keras-team/keras-applications/blob/master/keras_applications/resnet50.py *)
 
 let id_block input kernel_size filters stage block input_layer =
-  let suffix = string_of_int stage ^ block ^ "_branch" in
-  let conv_name = "res" ^ suffix in
-  let bn_name = "bn" ^ suffix in
+  let suffix = string_of_int stage ^ block in
+  let conv_name = "res" ^ suffix ^ "_branch" in
+  let bn_name = "bn" ^ suffix ^ "_branch" in
+  let act_name = "res" ^ suffix ^ "_out" in
   let f1, f2, f3 = filters in
   let x =
     input_layer
     |> conv2d [|1; 1; input; f1|] [|1; 1|] ~padding:VALID ~name:(conv_name^"2a")
-    |> normalisation ~axis:3 ~name:(bn_name^"2a") (* 3 should be the axis since [|1;224;224;3|] *)
+    |> normalisation ~name:(bn_name^"2a")
     |> activation Activation.Relu
 
     |> conv2d [|kernel_size; kernel_size; f1; f2|] [|1; 1|] ~padding:SAME ~name:(conv_name^"2b")
-    |> normalisation ~axis:3 ~name:(bn_name^"2b")
+    |> normalisation ~name:(bn_name^"2b")
     |> activation Activation.Relu
 
     |> conv2d [|1; 1; f2; f3|] [|1; 1|] ~padding:VALID ~name:(conv_name^"2c")
-    |> normalisation ~axis:3 ~name:(bn_name^"2c") in
+    |> normalisation ~name:(bn_name^"2c") in
 
   add [|x; input_layer|]
-  |> activation Activation.Relu
+  |> activation ~name:act_name Activation.Relu
 
 let conv_block input kernel_size filters strides stage block input_layer =
-  let suffix = string_of_int stage ^ block ^ "_branch" in
-  let conv_name = "res" ^ suffix in
-  let bn_name = "bn" ^ suffix in
+  let suffix = string_of_int stage ^ block in
+  let conv_name = "res" ^ suffix ^ "_branch" in
+  let bn_name = "bn" ^ suffix ^ "_branch" in
+  let act_name = "res" ^ suffix ^ "_out" in
   let f1, f2, f3 = filters in
   let x =
     input_layer
     |> conv2d [|1; 1; input; f1|] strides ~padding:VALID ~name:(conv_name^"2a")
-    |> normalisation ~axis:3 ~name:(bn_name^"2a")
+    |> normalisation ~name:(bn_name^"2a")
     |> activation Activation.Relu
 
     |> conv2d [|kernel_size; kernel_size; f1; f2|] [|1; 1|] ~padding:SAME ~name:(conv_name^"2b")
-    |> normalisation ~axis:3 ~name:(bn_name^"2b")
+    |> normalisation ~name:(bn_name^"2b")
     |> activation Activation.Relu
 
     |> conv2d [|1; 1; f2; f3|] [|1; 1|] ~padding:VALID ~name:(conv_name^"2c")
-    |> normalisation ~axis:3 ~name:(bn_name^"2c") in
+    |> normalisation ~name:(bn_name^"2c") in
 
   let shortcut =
     input_layer
     |> conv2d [|1; 1; input; f3|] strides ~padding:VALID ~name:(conv_name^"1")
-    |> normalisation ~axis:3 ~name:(bn_name^"1") in
+    |> normalisation ~name:(bn_name^"1") in
 
   add [|x; shortcut|]
-  |> activation Activation.Relu
+  |> activation ~name:act_name Activation.Relu
 
 let resnet101 input_image =
   (* input_image should be +6 along each dimension instead of padding2d *)
@@ -59,7 +61,7 @@ let resnet101 input_image =
     input_image
     (* |> padding2d [|3; 3|] *)
     |> conv2d [|7; 7; 3; 64|] [|2; 2|] ~padding:VALID ~name:"conv1"
-    |> normalisation ~axis:3 ~name:"bn_conv1"
+    |> normalisation ~name:"bn_conv1"
     |> activation Activation.Relu
     |> max_pool2d [|3; 3|] [|2; 2|] ~padding:SAME in
 

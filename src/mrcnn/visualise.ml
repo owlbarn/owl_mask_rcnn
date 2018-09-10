@@ -2,11 +2,11 @@ open Owl
 module N = Dense.Ndarray.S
 
 let apply_mask img masks num color =
-  let alpha = 0.5 in
+  let alpha = 0.4 in
   N.iteri_nd (fun index x ->
       let i, j, k = index.(0), index.(1), index.(2) in
-      if N.(masks.%{[|num;i;j|]}) >= 0.5 then
-        N.set img index (x *. (1. -. alpha) +. alpha *. color.(k) *. 255.))
+      if N.(masks.%{[|num; i; j|]}) >= 0.5 then
+        N.set img index (x *. (1. -. alpha) +. alpha *. color.(k)))
     img
 
 let random_colors n =

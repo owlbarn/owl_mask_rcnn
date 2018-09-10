@@ -28,7 +28,9 @@ let load nn =
                     && String.sub n.name 0 3 = "rpn" then
                    String.sub n.name 0 (len - 3)
                  else n.name in
-      if Neuron.to_name n.neuron = "conv2d" then (
+      let neuron_name = Neuron.to_name n.neuron in
+      if neuron_name = "conv2d" || neuron_name = "transpose_conv2d" ||
+           neuron_name = "dilated_conv2d" then (
         let w = H5.read_float_genarray h5_file (name ^ conv2d_W) C_layout in
         let b = H5.read_float_genarray h5_file (name ^ conv2d_b) C_layout in
         let w = N.cast_d2s w and
@@ -36,7 +38,7 @@ let load nn =
         param.(0) <- AD.pack_arr w; param.(1) <- AD.pack_arr b;
         Neuron.update n.neuron param
       )
-      else if Neuron.to_name n.neuron = "normalisation" then (
+      else if neuron_name = "normalisation" then (
         let b = H5.read_float_genarray h5_file (name ^ bn_beta) C_layout in
         let g = H5.read_float_genarray h5_file (name ^ bn_gamma) C_layout in
         let mu = H5.read_float_genarray h5_file (name ^ bn_mu) C_layout in
@@ -58,7 +60,7 @@ let load nn =
         (function Neuron.Normalisation a -> (a.mu <- (AD.pack_arr mu))) n.neuron;
         (function Neuron.Normalisation a -> (a.var <- (AD.pack_arr var))) n.neuron;
       )
-      else if Neuron.to_name n.neuron = "linear" then (
+      else if neuron_name = "linear" then (
         let w = H5.read_float_genarray h5_file (name ^ lin_W) C_layout in
         let b = H5.read_float_genarray h5_file (name ^ lin_b) C_layout in
         let w = N.cast_d2s w and
@@ -71,5 +73,5 @@ let load nn =
       else
         ()
     ) nodes;
-  Graph.save_weights nn out_name;
+  (* Graph.save_weights nn out_name; *)
   H5.close h5_file

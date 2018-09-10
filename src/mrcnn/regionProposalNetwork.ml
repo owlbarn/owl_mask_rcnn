@@ -15,7 +15,7 @@ let rpn_graph feature_map anchors_per_loc anchor_stride depth name =
             ~padding:VALID ~name:("rpn_class_raw" ^ name) shared in
 
   let rpn_class_logits = reshape [|anchors_per_loc * h * w; 2|] x in
-  let rpn_probs = activation Activation.(Softmax 1)
+  let rpn_probs = activation Activation.(Softmax 2)
                     ~name:("rpn_class_xxx" ^ name) rpn_class_logits in
 
   let x = conv2d [|1; 1; 512; anchors_per_loc * 4|] [|1; 1|] ~padding:VALID
