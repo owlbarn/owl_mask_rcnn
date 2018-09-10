@@ -6,9 +6,8 @@ open Neural.S.Graph
 module N = Dense.Ndarray.Generic
 module AD = Neural.S.Algodiff
 
-let filename = "src/weights/mask_rcnn_coco_owl.hdf5"
-let h5_file = H5.open_rdonly filename
-let out_name = "src/weights/mrcnn.weights"
+let filename = "mask_rcnn_coco_owl.hdf5"
+(* let out_name = "mrcnn.weights" *)
 
 let conv2d_W = "kernel:0"
 let conv2d_b = "bias:0"
@@ -20,6 +19,7 @@ let lin_W = "kernel:0"
 let lin_b = "bias:0"
 
 let load nn =
+  let h5_file = H5.open_rdonly filename in
   let nodes = nn.topo in
   Array.iter (fun n ->
       let param = Neuron.mkpar n.neuron in

@@ -124,6 +124,8 @@ let mold_inputs src =
                      (N.shape processed_image) window scale in
   processed_image, image_meta, window
 
+
+
 (* Applies the deltas to the boxes.
  * Boxes: [N, [y1, x1, y2, x2]], deltas: [N, [dx, dy, log(dh), log(dy)]]. *)
 let apply_box_deltas boxes deltas =
@@ -351,3 +353,61 @@ let unmold_mask mask box image_shape =
   let full_mask = N.zeros [|h; w|] in
   N.set_slice [[y1; y2 - 1]; [x1; x2 - 1]] full_mask mask;
   full_mask
+
+(* Reformats the results of the neural network in a more suitable format.
+ * detections: [N, [y1, x1, y2, x2, class_id, score]]
+ * mrcnn_mask: [N, height, width, num_classes]
+ * original_image_shape: [H, W, C]
+ * image_shape: [H, W, C]
+ * window: [y1, x1, y2, x2] *)
+let unmold_detections detections mrcnn_mask original_image_shape image_shape
+      window =
+  (* Finds number of detections (detections is padded with zero but when valid,
+   * class_id should be >= 1. Should be called on a single batch slice.
+   * detections: *)
+  let len = (N.shape detections).(0) in
+  let n = let rec loop i =
+            if i >= len then len
+            else if N.get detections [|i; 4|] = 0. then i
+            else loop (i + 1) in
+          loop 0 in
+
+  let boxes = N.get_slice [[0;n-1];[0;3]] detections in
+  let window = norm_boxes
+                 (N.of_array (Array.map float window) [|4|]) image_shape in
+  let wy1, wx1, wy2, wx2 =
+    N.(window.%{[|0|]}, window.%{[|1|]}, window.%{[|2|]}, window.%{[|3|]}) in
+  let shift = N.of_array [|wy1; wx1; wy1; wx1|] [|4|] in
+  let wh = wy2 -. wy1
+  and ww = wx2 -. wx1 in
+  let scale = N.of_array [|wh; ww; wh; ww|] [|4|] in
+  let boxes =
+    let tmp_boxes = N.((boxes - shift) / scale) in
+    denorm_boxes tmp_boxes original_image_shape in
+
+  (* Keep only boxes with area > 0 *)
+  let keep = MrcnnUtil.select_indices n (fun i ->
+                 N.((boxes.%{[|i;2|]} -. boxes.%{[|i;0|]}) *.
+                      (boxes.%{[|i;3|]} -. boxes.%{[|i;1|]})) > 0.) in
+  let n = Array.length keep in
+  let boxes = MrcnnUtil.gather_slice ~axis:0 boxes keep in
+  (* Extracts boxes, class_ids, scores and masks *)
+  let class_ids = Array.init n (fun i ->
+                      int_of_float (N.get detections [|keep.(i); 4|])) in
+  let masks =
+    let mask_h, mask_w = let sh = N.shape mrcnn_mask in sh.(1), sh.(2) in
+    MrcnnUtil.init_slice ~axis:0 [|n; mask_h; mask_w|]
+      (fun i -> N.get_slice [[keep.(i)];[];[];[class_ids.(i)]] mrcnn_mask
+                |> N.squeeze ~axis:[|3|]) in
+  let scores = MrcnnUtil.gather_slice ~axis:0
+                 (N.get_slice [[];[5]] detections) keep
+               |> N.squeeze ~axis:[|1|] in
+
+  let full_masks =
+    let h, w = original_image_shape.(0), original_image_shape.(1) in
+    MrcnnUtil.init_slice ~axis:0 [|n; h; w|] (fun i ->
+        let mask = N.get_slice [[i];[];[]] masks |> N.squeeze ~axis:[|0|] in
+        let box = N.get_slice [[i];[]] boxes |> N.squeeze ~axis:[|0|] in
+        N.expand (unmold_mask mask box original_image_shape) 3) in
+
+  boxes, class_ids, scores, full_masks

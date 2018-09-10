@@ -50,7 +50,7 @@ let pyramid_roi_align pool_shape = fun inputs ->
   (* Rearrange pooled in the original order *)
   let box_to_level =
     let tmp = Array.concat (List.rev !box_to_level) in
-    let level_i = Array.init (Array.length tmp) (fun i -> (tmp.(i).(0), i)) in
+    let level_i = Array.init (Array.length tmp) (fun i -> (tmp.(i).(1), i)) in
     Array.sort MrcnnUtil.comp2 level_i;
     Array.init (Array.length level_i) (fun i -> snd level_i.(i)) in
 

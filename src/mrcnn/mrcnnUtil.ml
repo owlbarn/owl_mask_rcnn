@@ -51,15 +51,18 @@ let gather_elts_nd_arr t ix =
 let empty_lists n = List.init n (fun _ -> [])
 
 let gather_slice ?(axis=0) t ix =
-  let () =
-    if Array.length ix = 0 then
-      invalid_arg "gather_slice: needs at least one index" in
   let dim = N.num_dims t in
   let first = empty_lists axis
   and last = empty_lists (dim - axis - 1) in
   let arr = Array.init (Array.length ix)
               (fun i -> N.get_slice (first @ ([[ix.(i)]] @ last)) t) in
-  N.concatenate ~axis arr
+  if Array.length arr > 0 then
+    N.concatenate ~axis arr
+  else
+    (* copy is useful?? *)
+    let sh = Array.copy (N.shape t) in
+    sh.(axis) <- 0;
+    N.empty sh
 
 let init_slice ?(axis=0) shape slice =
   let dim = Array.length shape in

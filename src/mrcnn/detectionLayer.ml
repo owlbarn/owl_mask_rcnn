@@ -28,7 +28,7 @@ let refine_detections rois probs deltas window =
     let cond i = class_ids.(i) > 0 &&
                    N.get class_scores [|i|] > C.detection_min_confidence in
     MrcnnUtil.select_indices n cond in
-  (* N.print class_scores; *)
+
   (* Per class NMS *)
   let pre_nms_class_ids = MrcnnUtil.gather_arr class_ids keep in
   let pre_nms_scores = MrcnnUtil.gather_elts_nd_arr class_scores keep in
@@ -70,7 +70,6 @@ let refine_detections rois probs deltas window =
 
   let pad_bottom = C.detection_max_instances - (N.shape detections).(0) in
   let detections = N.pad ~v:0. [[0;pad_bottom]; [0;0]] detections in
-  N.print detections;
   detections
 
 (* To change if batch_size > 1 *)

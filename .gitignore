@@ -9,5 +9,6 @@ _build/*
 .#*
 current_network.txt
 pics/*
+res/*
 *.txt
 debug*

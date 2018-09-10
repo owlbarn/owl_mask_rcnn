@@ -5,7 +5,7 @@ module N = Dense.Ndarray.S
 
 let name = "Mask R-CNN"
 
-let image_dim = 256
+let image_dim = 512
 
 (* Cannot be changed at the moment. *)
 let batch_size = 1
@@ -40,7 +40,9 @@ let bbox_std_dev = N.of_array [|0.1; 0.1; 0.2; 0.2|] [|4|]
 
 let detection_max_instances = 100
 
-let detection_min_confidence = 0.7
+(* You can decrease the detection confidence if you want to detect more
+ * objects *)
+let detection_min_confidence = 0.6
 
 let detection_nms_threshold = 0.3
 
