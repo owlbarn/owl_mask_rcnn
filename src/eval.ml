@@ -17,6 +17,7 @@ let rec process_dir f name =
     Array.iter (fun d ->
         process_dir f (name ^ "/" ^ d)) (Sys.readdir name)
   else
+    Printf.printf "%s\n%!" name;
     f name
 
 let eval src =

@@ -95,7 +95,7 @@ let mrcnn image_meta =
 
   let mrcnn_mask = FPN.build_fpn_mask_graph detection_boxes mrcnn_feature_maps
                      input_image_meta C.mask_pool_size C.num_classes in
-  get_network ~name:"Mask R-CNN" mrcnn_mask
+  get_network ~name:C.name mrcnn_mask
 
 
 (* *** Input and Output Processing *** *)
@@ -139,7 +139,6 @@ let detect src =
   Printf.printf "Graph built!\n%!";
   Load_weights.load nn;
   Printf.printf "Weights loaded!\n%!";
-  (* Graph.print nn; *)
 
   (fun () ->
     (* quick hack to replace padding2d *)
