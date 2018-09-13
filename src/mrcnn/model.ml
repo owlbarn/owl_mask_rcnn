@@ -14,7 +14,7 @@ module C = Configuration
  * enough for inference but not suitable for training. *)
 
 (* *** MASK R-CNN *** *)
-let mrcnn image_meta =
+let mrcnn num_anchors =
   let () =
     if C.image_shape.(0) mod 64 <> 0 || C.image_shape.(1) mod 64 <> 0 then
       invalid_arg "Image width and height must be divisible by 64" in
@@ -22,21 +22,10 @@ let mrcnn image_meta =
   let input_shape = [|C.image_shape.(0) + 6; C.image_shape.(1) + 6; 3|] in
   let input_image = input ~name:"input_image" input_shape in
 
-  (* The next two layers should be inputs of the network. Since Owl does not
-   * support multi-inputs networks, we define them as input_image successors.
-   * We can note that input_image_meta depends only on the size of the input
-   * image. *)
-  let f input t =
-    let shape = Array.append [|(shape t.(0)).(0)|] (N.shape input) in
-    pack_arr (N.reshape input shape) in
-
   let input_image_meta =
-    lambda_array [|C.image_meta_size|] (f image_meta)
-      ~name:"input_image_meta" [|input_image|] in
-  let anchors = (* checked: the anchors are the same as the Keras ones *)
-    let anchors = Image.get_anchors C.image_shape in
-    lambda_array (N.shape anchors) (f anchors)
-      ~name:"input_anchors" [|input_image|] in
+    input ~name:"input_image_meta" [|C.image_meta_size|] in
+  let anchors =
+    input ~name:"input_anchors" [|num_anchors|] in
 
   let _, c2, c3, c4, c5 = Resnet.resnet101 input_image in
 
@@ -95,15 +84,12 @@ let mrcnn image_meta =
 
   let mrcnn_mask = FPN.build_fpn_mask_graph detection_boxes mrcnn_feature_maps
                      input_image_meta C.mask_pool_size C.num_classes in
-  get_network ~name:C.name mrcnn_mask
+  get_multi_network ~name:C.name
+    [|input_image; input_image_meta; anchors|]
+    [|detections; mrcnn_mask|]
 
 
 (* *** Input and Output Processing *** *)
-
-let update_image_meta nn image_meta =
-  let input_meta_node = get_node nn "input_image_meta" in
-  let image_meta = N.expand image_meta 2 in
-  input_meta_node.output <- Some (pack_arr image_meta)
 
 let get_output nn node_name =
   let node = get_node nn node_name in
@@ -119,9 +105,7 @@ type results = {
     masks: N.arr;
   }
 
-let extract_features nn image_meta =
-  let detections = get_output nn "mrcnn_detection" in
-  let mrcnn_masks = get_output nn "mrcnn_mask" in
+let extract_features detections mrcnn_masks image_meta =
   let meta = Image.parse_image_meta (N.expand image_meta 2) in
   let rois, class_ids, scores, masks =
     Image.unmold_detections
@@ -132,22 +116,21 @@ let extract_features nn image_meta =
       meta.window in
   { rois; class_ids; scores; masks; }
 
-
-let detect src =
-  let molded_image, image_meta, windows = Image.mold_inputs src in
-  let nn = mrcnn image_meta in (* depends only on the size of the image *)
+let detect () =
+  let anchors = Image.get_anchors C.image_shape in
+  let nn = mrcnn (N.shape anchors).(0) in
   Printf.printf "Graph built!\n%!";
   Load_weights.load nn;
   Printf.printf "Weights loaded!\n%!";
 
-  (fun () ->
+  (fun src ->
+    let molded_image, image_meta, windows = Image.mold_inputs src in
     (* quick hack to replace padding2d *)
     let image = N.pad ~v:0. [[3;3];[3;3];[0;0]] molded_image in
-    let image = N.expand image 4 in
 
-    let _ = Graph.run (pack_arr image) nn in
+    let outputs = Graph.multi_model [|image; image_meta; anchors|] nn in
     Printf.printf "Computation done!\n%!";
     (* N.print ~max_row:500 ~max_col:20 (get_output nn "mrcnn_class"); *)
-    let results = extract_features nn image_meta in
+    let results = extract_features outputs.(0) outputs.(1) image_meta in
     results
   )
