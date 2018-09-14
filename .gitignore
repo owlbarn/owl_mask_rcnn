@@ -12,3 +12,4 @@ pics/*
 res/*
 *.txt
 debug*
+massif.*
