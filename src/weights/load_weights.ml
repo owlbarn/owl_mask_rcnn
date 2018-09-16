@@ -1,8 +1,8 @@
 open Owl
 open Hdf5_caml
 
-open Neural.S
-open Neural.S.Graph
+open CGraph.Neural
+open CGraph.Graph
 module N = Dense.Ndarray.Generic
 module AD = Neural.S.Algodiff
 
@@ -35,7 +35,7 @@ let load nn =
         let b = H5.read_float_genarray h5_file (name ^ conv2d_b) C_layout in
         let w = N.cast_d2s w and
             b = N.cast_d2s b in
-        param.(0) <- AD.pack_arr w; param.(1) <- AD.pack_arr b;
+        param.(0) <- MrcnnUtil.pack w; param.(1) <- MrcnnUtil.pack b;
         Neuron.update n.neuron param
       )
       else if neuron_name = "normalisation" then (
@@ -55,10 +55,10 @@ let load nn =
         let mu = Dense.Ndarray.S.reshape mu [|1;1;1;len.(0)|] in
         let len = Dense.Ndarray.S.shape var in
         let var = Dense.Ndarray.S.reshape var [|1;1;1;len.(0)|] in
-        param.(0) <- AD.pack_arr b; param.(1) <- AD.pack_arr g;
+        param.(0) <- MrcnnUtil.pack b; param.(1) <- MrcnnUtil.pack g;
         Neuron.update n.neuron param;
-        (function Neuron.Normalisation a -> (a.mu <- (AD.pack_arr mu))) n.neuron;
-        (function Neuron.Normalisation a -> (a.var <- (AD.pack_arr var))) n.neuron;
+        (function Neuron.Normalisation a -> (a.mu <- (MrcnnUtil.pack mu))) n.neuron;
+        (function Neuron.Normalisation a -> (a.var <- (MrcnnUtil.pack var))) n.neuron;
       )
       else if neuron_name = "linear" then (
         let w = H5.read_float_genarray h5_file (name ^ lin_W) C_layout in
@@ -67,7 +67,7 @@ let load nn =
             b = N.cast_d2s b in
         let b_dim = Array.append [|1|] (Dense.Ndarray.S.shape b) in
         let b = Dense.Ndarray.S.reshape b b_dim in
-        param.(0) <- AD.pack_arr w; param.(1) <- AD.pack_arr b;
+        param.(0) <- MrcnnUtil.pack w; param.(1) <- MrcnnUtil.pack b;
         Neuron.update n.neuron param
       )
       else

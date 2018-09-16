@@ -88,6 +88,8 @@ let unique_ids ids =
 
 (* Similar to Keras' TimeDistributed.*)
 let time_distributed neuron input_node =
+  let open CGraph.Graph in
+  let open CGraph.AD in
   let input_shape = Neuron.get_out_shape input_node.neuron in
   let time_steps = input_shape.(0) in
   let dim = Array.length input_shape in
@@ -106,3 +108,10 @@ let time_distributed neuron input_node =
       let final_shape = Array.append [|batch_size|] output_shape in
       Maths.reshape t.(0) final_shape) [|x|]
 
+let pack t =
+  CGraph.Engine.pack_arr t
+  |> CGraph.AD.pack_arr
+
+let unpack t =
+  CGraph.AD.unpack_arr t
+  |> CGraph.Engine.unpack_arr

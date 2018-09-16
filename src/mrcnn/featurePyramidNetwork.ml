@@ -1,7 +1,6 @@
 open Owl
-open Neural.S
-open Neural.S.Graph
-module N = Dense.Ndarray.S
+open CGraph.Neural
+open CGraph.Graph
 
 module PRA = PyramidROIAlign
 module U = MrcnnUtil

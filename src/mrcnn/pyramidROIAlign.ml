@@ -1,5 +1,5 @@
 open Owl
-module AD = Neural.S.Algodiff
+
 module N = Dense.Ndarray.S
 
 module C = Configuration
@@ -7,7 +7,7 @@ module C = Configuration
 (* *** ROIAlign Layer *** *)
 
 let pyramid_roi_align pool_shape = fun inputs ->
-  let inputs = Array.map AD.unpack_arr inputs in
+  let inputs = Array.map MrcnnUtil.unpack inputs in
   (* [batch, N, [y1, x1, y2, x2]] *)
   let boxes = inputs.(0) in
   let image_meta = inputs.(1) in
@@ -58,4 +58,4 @@ let pyramid_roi_align pool_shape = fun inputs ->
     let tmp = N.concatenate ~axis:0 (Array.of_list (List.rev !pooled)) in
     MrcnnUtil.gather_slice ~axis:0 tmp box_to_level in
 
-  AD.pack_arr (N.expand pooled 5)
+  MrcnnUtil.pack (N.expand pooled 5)

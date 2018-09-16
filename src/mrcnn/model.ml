@@ -1,8 +1,10 @@
 open Owl
-open Neural.S
-open Neural.S.Graph
-open Neural.S.Algodiff
+
 module N = Dense.Ndarray.S
+
+open CGraph.Neural
+open CGraph.Graph
+open CGraph.AD
 
 module RPN = RegionProposalNetwork
 module PL = ProposalLayer
@@ -28,7 +30,7 @@ let mrcnn image_meta =
    * image. *)
   let f input t =
     let shape = Array.append [|(shape t.(0)).(0)|] (N.shape input) in
-    pack_arr (N.reshape input shape) in
+    MrcnnUtil.pack (N.reshape input shape) in
 
   let input_image_meta =
     lambda_array [|C.image_meta_size|] (f image_meta)
@@ -100,15 +102,10 @@ let mrcnn image_meta =
 
 (* *** Input and Output Processing *** *)
 
-let update_image_meta nn image_meta =
-  let input_meta_node = get_node nn "input_image_meta" in
-  let image_meta = N.expand image_meta 2 in
-  input_meta_node.output <- Some (pack_arr image_meta)
-
 let get_output nn node_name =
   let node = get_node nn node_name in
   match node.output with
-  | Some x -> unpack_arr x
+  | Some x -> MrcnnUtil.unpack x
   | None -> invalid_arg (node_name ^ " node outputs can't be found.")
 
 
@@ -145,7 +142,7 @@ let detect src =
     let image = N.pad ~v:0. [[3;3];[3;3];[0;0]] molded_image in
     let image = N.expand image 4 in
 
-    let _ = Graph.run (pack_arr image) nn in
+    let _ = Graph.run (MrcnnUtil.pack image) nn in
     Printf.printf "Computation done!\n%!";
     (* N.print ~max_row:500 ~max_col:20 (get_output nn "mrcnn_class"); *)
     let results = extract_features nn image_meta in

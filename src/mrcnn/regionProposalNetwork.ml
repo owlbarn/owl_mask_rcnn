@@ -1,6 +1,7 @@
 open Owl
-open Neural.S
-open Neural.S.Graph
+
+open CGraph.Neural
+open CGraph.Graph
 
 (* *** REGION PROPOSAL NETWORK ***
  * Different names for each p_i? *)
