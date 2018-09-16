@@ -57,8 +57,10 @@ let load nn =
         let var = Dense.Ndarray.S.reshape var [|1;1;1;len.(0)|] in
         param.(0) <- AD.pack_arr b; param.(1) <- AD.pack_arr g;
         Neuron.update n.neuron param;
-        (function Neuron.Normalisation a -> (a.mu <- (AD.pack_arr mu))) n.neuron;
-        (function Neuron.Normalisation a -> (a.var <- (AD.pack_arr var))) n.neuron;
+        (function | Neuron.Normalisation a -> (a.mu <- (AD.pack_arr mu))
+                  | _ -> invalid_arg "load_weights: normalisation error") n.neuron;
+        (function | Neuron.Normalisation a -> (a.var <- (AD.pack_arr var))
+                  | _ -> invalid_arg "load_weights: normalisation error") n.neuron;
       )
       else if neuron_name = "linear" then (
         let w = H5.read_float_genarray h5_file (name ^ lin_W) C_layout in
