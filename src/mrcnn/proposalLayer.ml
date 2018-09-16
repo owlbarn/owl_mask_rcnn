@@ -1,5 +1,4 @@
 open Owl
-module AD = Neural.S.Algodiff
 module N = Dense.Ndarray.S
 
 module C = Configuration
@@ -8,7 +7,7 @@ module C = Configuration
 
 (* Should be changed to support batch size > 1. *)
 let proposal_layer proposal_count nms_threshold = fun inputs ->
-  let inputs = Array.map AD.unpack_arr inputs in
+  let inputs = Array.map MrcnnUtil.unpack inputs in
   (* [batch, number of ROIs, 1] where 1 is the foreground class confidence. *)
   let scores = N.get_slice [[]; []; [1]] inputs.(0) in
   (* N.print scores; *)
@@ -38,4 +37,4 @@ let proposal_layer proposal_count nms_threshold = fun inputs ->
     let padding = max (proposal_count - (N.shape proposals).(0)) 0 in
     N.pad [[0; padding]; [0; 0]] proposals in
 
-  AD.pack_arr (N.expand proposals 3)
+  MrcnnUtil.pack (N.expand proposals 3)

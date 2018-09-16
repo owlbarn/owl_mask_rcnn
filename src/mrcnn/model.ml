@@ -1,8 +1,10 @@
 open Owl
 
-open Neural.S.Graph
-open Neural.S.Algodiff
 module N = Dense.Ndarray.S
+
+open CGraph.Neural
+open CGraph.Graph
+open CGraph.AD
 
 module RPN = RegionProposalNetwork
 module PL = ProposalLayer

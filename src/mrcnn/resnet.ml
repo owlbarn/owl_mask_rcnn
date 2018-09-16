@@ -1,6 +1,7 @@
 open Owl
-open Neural.S
-open Neural.S.Graph
+
+open CGraph.Neural
+open CGraph.Neural.Graph
 
 (* *** RESNET101 ***
  * The code is heavily inspired by

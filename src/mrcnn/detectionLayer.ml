@@ -1,5 +1,4 @@
 open Owl
-module AD = Neural.S.Algodiff
 module N = Dense.Ndarray.S
 
 module C = Configuration
@@ -74,7 +73,9 @@ let refine_detections rois probs deltas window =
 
 (* To change if batch_size > 1 *)
 let detection_layer () = fun inputs ->
-  let inputs = Array.map AD.unpack_arr inputs in
+  let inputs = Array.map (fun x -> CGraph.AD.unpack_arr x
+                                   |> CGraph.Engine.unpack_arr)
+                 inputs in
   let rois = N.squeeze ~axis:[|0|] inputs.(0)
   and mrcnn_class = N.squeeze ~axis:[|0|] inputs.(1)
   and mrcnn_bbox = N.squeeze ~axis:[|0|] inputs.(2) in
@@ -87,4 +88,5 @@ let detection_layer () = fun inputs ->
   let detections_batch = refine_detections rois mrcnn_class mrcnn_bbox window in
   let reshaped_detections = N.reshape detections_batch
                               [|C.batch_size; C.detection_max_instances; 6|] in
-  AD.pack_arr reshaped_detections
+  CGraph.Engine.pack_arr reshaped_detections
+  |> CGraph.AD.pack_arr
