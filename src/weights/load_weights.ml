@@ -1,7 +1,6 @@
 open Owl
 open Hdf5_caml
 
-open Neural.S
 open Neural.S.Graph
 module N = Dense.Ndarray.Generic
 module AD = Neural.S.Algodiff

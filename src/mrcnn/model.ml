@@ -1,5 +1,5 @@
 open Owl
-open Neural.S
+
 open Neural.S.Graph
 open Neural.S.Algodiff
 module N = Dense.Ndarray.S
@@ -115,7 +115,7 @@ let detect () =
   Printf.printf "Weights loaded!\n%!";
 
   (fun src ->
-    let molded_image, image_meta, windows = Image.mold_inputs src in
+    let molded_image, image_meta, _ = Image.mold_inputs src in
     (* quick hack to replace padding2d *)
     let image = N.pad ~v:0. [[3;3];[3;3];[0;0]] molded_image in
 

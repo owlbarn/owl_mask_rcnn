@@ -8,8 +8,8 @@ _build/*
 *#
 .#*
 current_network.txt
-pics/*
-res/*
+data/*
 *.txt
 debug*
 massif.*
+massif/*

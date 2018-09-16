@@ -1,17 +1,12 @@
-PROGRAMS = eval.ml
-OCAMLPACKS = owl graphics camlimages.all_formats camlimages.graphics hdf5_caml
-
-SOURCES = $(addprefix src/, $(PROGRAMS))
-
-OCAMLBUILD = ocamlbuild -use-ocamlfind $(OCAMLFLAGS)
 
 default: all
 
-.PHONY: all clean
-all:	$(SOURCES)
-	$(OCAMLBUILD) -r -pkg "$(OCAMLPACKS)" $(SOURCES:.ml=.native)
-$(SOURCES:.ml=.native): %.native: %.ml
-	$(OCAMLBUILD) -r -pkg "$(OCAMLPACKS)" $@
+.PHONY: all run clean
+all:
+	dune build examples/evalImage.ml
 
-clean::
-	ocamlbuild -clean
+run:
+	dune exec ./examples/evalImage.exe
+
+clean:
+	dune clean

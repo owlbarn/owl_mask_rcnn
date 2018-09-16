@@ -1,0 +1,3 @@
+(executable
+  (name evalImage)
+  (libraries mrcnn))
