@@ -3,7 +3,6 @@ B /home/pierre/.opam/4.06.1/lib/camlimages
 B /home/pierre/.opam/4.06.1/lib/camlimages/core
 B /home/pierre/.opam/4.06.1/lib/camlimages/exif
 B /home/pierre/.opam/4.06.1/lib/camlimages/gif
-B /home/pierre/.opam/4.06.1/lib/camlimages/graphics
 B /home/pierre/.opam/4.06.1/lib/camlimages/jpeg
 B /home/pierre/.opam/4.06.1/lib/camlimages/png
 B /home/pierre/.opam/4.06.1/lib/camlimages/tiff
@@ -24,7 +23,6 @@ S /home/pierre/.opam/4.06.1/lib/camlimages
 S /home/pierre/.opam/4.06.1/lib/camlimages/core
 S /home/pierre/.opam/4.06.1/lib/camlimages/exif
 S /home/pierre/.opam/4.06.1/lib/camlimages/gif
-S /home/pierre/.opam/4.06.1/lib/camlimages/graphics
 S /home/pierre/.opam/4.06.1/lib/camlimages/jpeg
 S /home/pierre/.opam/4.06.1/lib/camlimages/png
 S /home/pierre/.opam/4.06.1/lib/camlimages/tiff
