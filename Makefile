@@ -1,8 +1,8 @@
 
-default: all
+default: build
 
-.PHONY: all run clean
-all:
+.PHONY: build run clean
+build:
 	dune build examples/evalImage.ml
 
 run:

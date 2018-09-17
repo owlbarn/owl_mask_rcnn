@@ -33,10 +33,16 @@ let () =
     else
       let img_arr = Image.img_to_ndarray src in
       let filename = List.hd (List.rev (String.split_on_char '/' src)) in
+      (* add the bounding boxes and the masks to the picture *)
       Visualise.display_masks img_arr rois masks;
       Image.save (out ^ filename) Images.Jpeg (Image.img_of_ndarray img_arr);
+      (* display classes, confidence and position *)
       Array.iteri (fun i id ->
-          Printf.printf "%s: %.3f\n" classes.(id) (N.get scores [|i|]))
+          Printf.printf "%13s: %.3f " classes.(id) (N.get scores [|i|]);
+          let y1, x1, y2, x2 =
+            N.(int_of_float rois.%{[|i; 0|]}, int_of_float rois.%{[|i; 1|]},
+               int_of_float rois.%{[|i; 2|]}, int_of_float rois.%{[|i; 3|]}) in
+          Printf.printf "at [(%4d, %4d), (%4d, %4d)]\n" y1 x1 y2 x2)
         class_ids
   in
   process_dir eval src
