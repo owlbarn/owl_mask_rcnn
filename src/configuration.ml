@@ -5,7 +5,7 @@ module N = Dense.Ndarray.S
 
 let name = "Mask R-CNN"
 
-let image_dim = 256
+let image_dim = 512
 
 (* Cannot be changed at the moment. *)
 let batch_size = 1
