@@ -45,7 +45,7 @@ let camlimg_to_ndarray img =
   let w, h = Images.size img in
   let img_rgb = match img with
     | Rgb24 x -> x
-    | _ -> invalid_arg "" in
+    | _ -> invalid_arg "unsupported image format" in (* TODO *)
   let res = N.empty [|h; w; 3|] in
   for i = 0 to h - 1 do
     for j = 0 to w - 1 do
