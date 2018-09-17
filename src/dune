@@ -3,12 +3,12 @@
 (copy_files# mrcnn/*)
 
 (library
- (name mrcnn)
+  (name mrcnn)
 
- (libraries
-   owl
-   graphics
-   camlimages.all_formats
-   camlimages.graphics
-   hdf5_caml)
- )
+  (libraries
+     owl
+     graphics
+     camlimages.all_formats
+     camlimages.graphics
+     hdf5_caml)
+  )
