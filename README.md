@@ -1,6 +1,6 @@
 # Mask R-CNN
 
-This is an implementation of the Mask R-CNN network using OCaml's numerical library Owl. This network can be used to perform object detection, segmentation and classification. The implementation is based on the paper https://arxiv.org/abs/1703.06870 and ported from the Keras implementation https://github.com/matterport/Mask_RCNN.
+This is an implementation of the Mask R-CNN network using OCaml's numerical library [Owl](https://github.com/owlbarn/owl). This network can be used to perform object detection, segmentation and classification. The implementation is based on the paper https://arxiv.org/abs/1703.06870 and ported from the Keras implementation https://github.com/matterport/Mask_RCNN.
 
 ## Instructions
 You need CamlImages, hdf5_caml (note that the 0.1.4 version does not work, you should probably use the 0.1.3 version) and obviously Owl.
