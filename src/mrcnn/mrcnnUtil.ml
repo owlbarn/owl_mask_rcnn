@@ -1,6 +1,4 @@
 open Owl
-open Neural.S.Graph
-open Neural.S.Algodiff
 module N = Dense.Ndarray.S
 module C = Configuration
 

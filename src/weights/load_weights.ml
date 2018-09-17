@@ -1,7 +1,6 @@
 open Owl
 open Hdf5_caml
 
-open CGraph.Neural
 open CGraph.Graph
 
 module N = Dense.Ndarray.Generic
@@ -63,8 +62,10 @@ let load nn =
         let var = Dense.Ndarray.S.reshape var [|1;1;1;len.(0)|] in
         param.(0) <- MrcnnUtil.pack b; param.(1) <- MrcnnUtil.pack g;
         Neuron.update n.neuron param;
-        (function Neuron.Normalisation a -> (a.mu <- (MrcnnUtil.pack mu))) n.neuron;
-        (function Neuron.Normalisation a -> (a.var <- (MrcnnUtil.pack var))) n.neuron;
+        (function | Neuron.Normalisation a -> (a.mu <- (MrcnnUtil.pack mu))
+                  | _ -> invalid_arg "") n.neuron;
+        (function | Neuron.Normalisation a -> (a.var <- (MrcnnUtil.pack var))
+                  | _ -> invalid_arg "") n.neuron;
       )
       else if neuron_name = "linear" then (
         let w = H5.read_float_genarray h5_file (name ^ lin_W) C_layout in

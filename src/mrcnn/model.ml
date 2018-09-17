@@ -2,7 +2,6 @@ open Owl
 
 module N = Dense.Ndarray.S
 
-open CGraph.Neural
 open CGraph.Graph
 open CGraph.AD
 
@@ -123,7 +122,9 @@ let detect () =
 
     let image = N.expand image 4 in
     let image_meta = N.expand image_meta 2 in
-    let outputs = model_inputs nn [|image; image_meta; anchors|] in
+    let inputs = Array.map CGraph.Engine.pack_arr [|image; image_meta; anchors|] in
+    let outputs = model_inputs nn inputs
+                |> Array.map CGraph.Engine.unpack_arr in
     (* N.print ~max_row:500 ~max_col:20 (get_output nn "mrcnn_class"); *)
     let results = extract_features outputs.(0) outputs.(1) image_meta in
     results
