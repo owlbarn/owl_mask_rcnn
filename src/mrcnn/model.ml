@@ -20,6 +20,7 @@ let mrcnn num_anchors =
     if C.image_shape.(0) mod 64 <> 0 || C.image_shape.(1) mod 64 <> 0 then
       invalid_arg "Image width and height must be divisible by 64" in
   (* compensates for the lack of Padding2D *)
+
   let image_shape = [|C.image_shape.(0) + 6; C.image_shape.(1) + 6; 3|] in
   let inputs = inputs
                  ~names:[|"input_image"; "input_image_meta"; "input_anchors"|]
