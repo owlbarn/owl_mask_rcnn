@@ -18,7 +18,13 @@ let lin_W = "kernel:0"
 let lin_b = "bias:0"
 
 let load nn =
-  let h5_file = H5.open_rdonly filename in
+  let h5_file =
+    try H5.open_rdonly filename with
+    | Hdf5_raw.H5i.Fail
+      -> invalid_arg
+           "you should download the pre-trained Owl weights here \
+            https://drive.google.com/file/d/1PMrPU-CQmW5dVlwNIPO4fbdW4AWdu02c/view \
+            and place them at the root of the directory" in
   let nodes = nn.topo in
   Array.iter (fun n ->
       let param = Neuron.mkpar n.neuron in

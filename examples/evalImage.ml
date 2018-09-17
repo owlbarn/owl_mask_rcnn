@@ -8,8 +8,8 @@ module C = Configuration
 (* Should use the weight file only if the problem with the normalisation neuron
  * saving/loading is fixed. *)
 (* let weight_file = "weights/mrcnn.network" *)
-let src = "data/pics"
-let out = "data/res/"
+let src = "data/examples"
+let out = "data/"
 
 let rec process_dir f name =
   let is_dir =
@@ -18,9 +18,10 @@ let rec process_dir f name =
   if is_dir then
     Array.iter (fun d ->
         process_dir f (name ^ "/" ^ d)) (Sys.readdir name)
-  else
+  else (
     Printf.printf "%s\n%!" name;
     f name
+  )
 
 let () =
   let fun_detect = Model.detect () in
@@ -30,7 +31,7 @@ let () =
     let Model.({rois; class_ids; scores; masks}) = fun_detect src in
     if Array.length class_ids = 0 then
       Printf.printf "No objects detected on the picture :'(\n"
-    else
+    else (
       let img_arr = Image.img_to_ndarray src in
       let filename = List.hd (List.rev (String.split_on_char '/' src)) in
       (* add the bounding boxes and the masks to the picture *)
@@ -44,5 +45,6 @@ let () =
                int_of_float rois.%{[|i; 2|]}, int_of_float rois.%{[|i; 3|]}) in
           Printf.printf "at [(%4d, %4d), (%4d, %4d)]\n" y1 x1 y2 x2)
         class_ids
+    )
   in
   process_dir eval src
