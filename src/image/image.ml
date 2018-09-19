@@ -41,14 +41,21 @@ let img_of_ndarray arr =
   done;
   Images.Rgb24 img
 
-
 let camlimg_to_ndarray img =
-  let comp k n = (n lsr ((2 - k) lsl 3)) land 0x0000FF in
-  (* Should avoid using Graphics? TODO Test how long it takes *)
-  let img_arr = Graphic_image.array_of_image img in
-  let h, w = Array.length img_arr, Array.length img_arr.(0) in
-  N.init_nd [|h; w; 3|]
-    (fun t -> float (comp t.(2) img_arr.(t.(0)).(t.(1))))
+  let w, h = Images.size img in
+  let img_rgb = match img with
+    | Rgb24 x -> x
+    | _ -> invalid_arg "unsupported image format" in (* TODO *)
+  let res = N.empty [|h; w; 3|] in
+  for i = 0 to h - 1 do
+    for j = 0 to w - 1 do
+      let color = Rgb24.get img_rgb j i in
+      N.set res [|i;j;0|] (float color.r);
+      N.set res [|i;j;1|] (float color.g);
+      N.set res [|i;j;2|] (float color.b);
+    done;
+  done;
+  res
 
 let img_to_ndarray src =
   let img = Images.load src [] in

@@ -8,7 +8,7 @@ module C = Configuration
 (* Should use the weight file only if the problem with the normalisation neuron
  * saving/loading is fixed. *)
 (* let weight_file = "weights/mrcnn.network" *)
-let src = "data/examples"
+let src = "data/pics"
 let out = "data/"
 
 let rec process_dir f name =
