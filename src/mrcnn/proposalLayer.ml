@@ -7,7 +7,6 @@ module C = Configuration
 
 (* Should be changed to support batch size > 1. *)
 let proposal_layer proposal_count nms_threshold = fun inputs ->
-  let inputs = Array.map MrcnnUtil.unpack inputs in
   (* [batch, number of ROIs, 1] where 1 is the foreground class confidence. *)
   let scores = N.get_slice [[]; []; [1]] inputs.(0) in
   (* N.print scores; *)
@@ -33,8 +32,8 @@ let proposal_layer proposal_count nms_threshold = fun inputs ->
   let proposals =
     let indices = Image.non_max_suppression
                     boxes top_scores proposal_count nms_threshold in
-    let proposals = MrcnnUtil.gather_slice ~axis:0 boxes indices in (* to check *)
+    let proposals = MrcnnUtil.gather_slice ~axis:0 boxes indices in
     let padding = max (proposal_count - (N.shape proposals).(0)) 0 in
     N.pad [[0; padding]; [0; 0]] proposals in
 
-  MrcnnUtil.pack (N.expand proposals 3)
+  N.expand proposals 3

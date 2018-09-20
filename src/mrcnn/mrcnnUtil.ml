@@ -113,3 +113,13 @@ let pack t =
 let unpack t =
   CGraph.AD.unpack_arr t
   |> CGraph.Engine.unpack_arr
+
+(* let delay_lambda ?name f t =
+  CGraph.Graph.lambda ?name (fun t ->
+      CGraph.AD.pack_arr (CGraph.M.delay f (CGraph.AD.unpack_arr t))) t *)
+
+let delay_lambda_array ?name shape f t =
+  let exp_shape = Array.append [|1|] shape in
+  CGraph.Graph.lambda_array ?name shape (fun t ->
+      CGraph.AD.pack_arr (CGraph.M.delay_array exp_shape f
+                            (Array.map CGraph.AD.unpack_arr t))) t

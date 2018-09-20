@@ -70,14 +70,14 @@ let mrcnn num_anchors =
 
   let rpn_rois =
     let prop_f = PL.proposal_layer C.post_nms_rois C.rpn_nms_threshold in
-    lambda_array [|C.post_nms_rois; 4|] prop_f ~name:"ROI"
+    MrcnnUtil.delay_lambda_array [|C.post_nms_rois; 4|] prop_f ~name:"ROI"
       [|rpn_class; rpn_bbox; input_anchors|] in
 
   let _, mrcnn_class, mrcnn_bbox =
     FPN.fpn_classifier_graph rpn_rois mrcnn_feature_maps input_image_meta
       C.pool_size C.num_classes C.fpn_classif_fc_layers_size in
 
-  let detections = lambda_array [|C.detection_max_instances; 6|]
+  let detections = MrcnnUtil.delay_lambda_array [|C.detection_max_instances; 6|]
                     (DL.detection_layer ()) ~name:"mrcnn_detection"
                     [|rpn_rois; mrcnn_class; mrcnn_bbox; input_image_meta|] in
   let detection_boxes = lambda_array [|C.detection_max_instances; 4|]
@@ -123,9 +123,9 @@ let detect () =
 
     let image = N.expand image 4 in
     let image_meta = N.expand image_meta 2 in
-    let inputs = Array.map CGraph.Engine.pack_arr [|image; image_meta; anchors|] in
-    let outputs = model_inputs nn inputs
-                |> Array.map CGraph.Engine.unpack_arr in
+    let inputs = Array.map MrcnnUtil.pack [|image; image_meta; anchors|] in
+    let outputs = CGraph.Compiler.model nn inputs
+                  |> Array.map MrcnnUtil.unpack in
     (* N.print ~max_row:500 ~max_col:20 (get_output nn "mrcnn_class"); *)
     let results = extract_features outputs.(0) outputs.(1) image_meta in
     results
