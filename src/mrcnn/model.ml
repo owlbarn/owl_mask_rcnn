@@ -110,11 +110,13 @@ let extract_features detections mrcnn_masks image_meta =
   { rois; class_ids; scores; masks; }
 
 let detect () =
+  (* Owl_log.set_level Owl_log.DEBUG; *)
   let anchors = N.expand (Image.get_anchors C.image_shape) 3 in
   let nn = mrcnn (N.shape anchors).(1) in
-  Printf.printf "Graph built!\n%!";
   Load_weights.load nn;
-  Printf.printf "Weights loaded!\n%!";
+  Owl_log.info "Weights loaded!";
+  let eval = CGraph.Compiler.model nn in
+  Owl_log.info "Computation graph built!";
 
   (fun src ->
     let molded_image, image_meta, _ = Image.mold_inputs src in
@@ -124,7 +126,7 @@ let detect () =
     let image = N.expand image 4 in
     let image_meta = N.expand image_meta 2 in
     let inputs = Array.map MrcnnUtil.pack [|image; image_meta; anchors|] in
-    let outputs = CGraph.Compiler.model nn inputs
+    let outputs = eval inputs
                   |> Array.map MrcnnUtil.unpack in
     (* N.print ~max_row:500 ~max_col:20 (get_output nn "mrcnn_class"); *)
     let results = extract_features outputs.(0) outputs.(1) image_meta in

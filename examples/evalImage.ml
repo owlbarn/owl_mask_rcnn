@@ -8,7 +8,7 @@ module C = Configuration
 (* Should use the weight file only if the problem with the normalisation neuron
  * saving/loading is fixed. *)
 (* let weight_file = "weights/mrcnn.network" *)
-let src = "data/pics"
+let src = "data/examples"
 let out = "data/"
 
 let rec process_dir f name =
@@ -19,7 +19,7 @@ let rec process_dir f name =
     Array.iter (fun d ->
         process_dir f (name ^ "/" ^ d)) (Sys.readdir name)
   else (
-    Printf.printf "%s\n%!" name;
+    Owl_log.info "Processing file: %s..." name;
     f name
   )
 

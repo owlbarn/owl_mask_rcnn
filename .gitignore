@@ -14,3 +14,6 @@ data/*
 debug*
 massif.*
 massif/*
+*.dot
+*.pdf
+*.svg
