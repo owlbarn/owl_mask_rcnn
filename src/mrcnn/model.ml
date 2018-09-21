@@ -18,13 +18,11 @@ module C = Configuration
 let mrcnn num_anchors =
   let () =
     if C.image_shape.(0) mod 64 <> 0 || C.image_shape.(1) mod 64 <> 0 then
-      invalid_arg "Image width and height must be divisible by 64" in
-  (* compensates for the lack of Padding2D *)
+      invalid_arg "Image height and width must be divisible by 64" in
 
-  let image_shape = [|C.image_shape.(0) + 6; C.image_shape.(1) + 6; 3|] in
   let inputs = inputs
                  ~names:[|"input_image"; "input_image_meta"; "input_anchors"|]
-                 [|image_shape; [|C.image_meta_size|]; [|num_anchors; 4|]|] in
+                 [|C.image_shape; [|C.image_meta_size|]; [|num_anchors; 4|]|] in
   let input_image = inputs.(0)
   and input_image_meta = inputs.(1)
   and input_anchors = inputs.(2) in
@@ -120,10 +118,8 @@ let detect () =
 
   (fun src ->
     let molded_image, image_meta, _ = Image.mold_inputs src in
-    (* quick hack to replace padding2d *)
-    let image = N.pad ~v:0. [[3;3];[3;3];[0;0]] molded_image in
 
-    let image = N.expand image 4 in
+    let image = N.expand molded_image 4 in
     let image_meta = N.expand image_meta 2 in
     let inputs = Array.map MrcnnUtil.pack [|image; image_meta; anchors|] in
     let outputs = eval inputs

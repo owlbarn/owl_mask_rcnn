@@ -57,10 +57,9 @@ let conv_block input kernel_size filters strides stage block input_layer =
   |> activation ~name:act_name Activation.Relu
 
 let resnet101 input_image =
-  (* input_image should be +6 along each dimension instead of padding2d *)
   let c1 =
     input_image
-    (* |> padding2d [|3; 3|] *)
+    |> padding2d [|[|3; 3|]; [|3; 3|]|]
     |> conv2d [|7; 7; 3; 64|] [|2; 2|] ~padding:VALID ~name:"conv1"
     |> normalisation ~name:"bn_conv1"
     |> activation Activation.Relu
