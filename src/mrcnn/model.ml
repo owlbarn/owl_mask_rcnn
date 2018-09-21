@@ -113,18 +113,15 @@ let detect () =
   let nn = mrcnn (N.shape anchors).(1) in
   Load_weights.load nn;
   Owl_log.info "Weights loaded!";
-  let eval = CGraph.Compiler.model nn in
+  let eval = CGraph.Compiler.model_inputs nn in
   Owl_log.info "Computation graph built!";
 
   (fun src ->
     let molded_image, image_meta, _ = Image.mold_inputs src in
-
     let image = N.expand molded_image 4 in
     let image_meta = N.expand image_meta 2 in
     let inputs = Array.map MrcnnUtil.pack [|image; image_meta; anchors|] in
-    let outputs = eval inputs
-                  |> Array.map MrcnnUtil.unpack in
-    (* N.print ~max_row:500 ~max_col:20 (get_output nn "mrcnn_class"); *)
+    let outputs = eval inputs |> Array.map MrcnnUtil.unpack in
     let results = extract_features outputs.(0) outputs.(1) image_meta in
     results
   )
