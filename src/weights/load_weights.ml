@@ -6,7 +6,7 @@ open CGraph.Graph
 module N = Dense.Ndarray.Generic
 
 let filename = "mask_rcnn_coco_owl.hdf5"
-(* let out_name = "mrcnn.weights" *)
+let out_name = Configuration.weight_file
 
 let conv2d_W = "kernel:0"
 let conv2d_b = "bias:0"
@@ -80,5 +80,5 @@ let load nn =
       else
         ()
     ) nodes;
-  (* Graph.save_weights nn out_name; *)
+  save_weights nn out_name;
   H5.close h5_file

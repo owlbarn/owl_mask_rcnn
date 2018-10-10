@@ -2,8 +2,9 @@ open Owl
 
 module N = Dense.Ndarray.S
 
-open CGraph.Graph
-open CGraph.AD
+open CGraph
+open Graph
+open AD
 
 module RPN = RegionProposalNetwork
 module PL = ProposalLayer
@@ -111,7 +112,7 @@ let detect () =
   (* Owl_log.set_level Owl_log.DEBUG; *)
   let anchors = N.expand (Image.get_anchors C.image_shape) 3 in
   let nn = mrcnn (N.shape anchors).(1) in
-  Load_weights.load nn;
+  Graph.load_weights nn C.weight_file;
   Owl_log.info "Weights loaded!";
   let eval = CGraph.Compiler.model_inputs nn in
   Owl_log.info "Computation graph built!";

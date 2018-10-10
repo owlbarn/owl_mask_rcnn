@@ -1,13 +1,13 @@
-(copy_files# weights/*)
 (copy_files# image/*)
 (copy_files# mrcnn/*)
+; (copy_files# weights/*)
 
 (library
   (name mrcnn)
 
   (libraries
      owl
-     graphics
      camlimages.all_formats
-     hdf5_caml)
+     ; hdf5_caml
+     )
   )

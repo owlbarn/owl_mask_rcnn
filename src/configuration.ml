@@ -49,3 +49,5 @@ let detection_nms_threshold = 0.3
 let image_shape = [|image_dim; image_dim; 3|]
 
 let image_meta_size = 1 + 3 + 3 + 4 + 1 + num_classes
+
+let weight_file = "mrcnn_coco.weights"

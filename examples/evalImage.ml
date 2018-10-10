@@ -5,8 +5,6 @@ module N = Dense.Ndarray.S
 open Mrcnn
 module C = Configuration
 
-(* Should use the weight file only if the problem with the normalisation neuron
- * saving/loading is fixed. *)
 let src = "data/examples"
 let out = "data/"
 

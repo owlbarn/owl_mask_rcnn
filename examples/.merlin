@@ -9,8 +9,6 @@ B /home/pierre/.opam/4.06.1/lib/camlimages/tiff
 B /home/pierre/.opam/4.06.1/lib/camlimages/xpm
 B /home/pierre/.opam/4.06.1/lib/ctypes
 B /home/pierre/.opam/4.06.1/lib/eigen
-B /home/pierre/.opam/4.06.1/lib/hdf5_caml
-B /home/pierre/.opam/4.06.1/lib/hdf5_raw
 B /home/pierre/.opam/4.06.1/lib/integers
 B /home/pierre/.opam/4.06.1/lib/ocaml
 B /home/pierre/.opam/4.06.1/lib/owl
@@ -29,8 +27,6 @@ S /home/pierre/.opam/4.06.1/lib/camlimages/tiff
 S /home/pierre/.opam/4.06.1/lib/camlimages/xpm
 S /home/pierre/.opam/4.06.1/lib/ctypes
 S /home/pierre/.opam/4.06.1/lib/eigen
-S /home/pierre/.opam/4.06.1/lib/hdf5_caml
-S /home/pierre/.opam/4.06.1/lib/hdf5_raw
 S /home/pierre/.opam/4.06.1/lib/integers
 S /home/pierre/.opam/4.06.1/lib/ocaml
 S /home/pierre/.opam/4.06.1/lib/owl
