@@ -7,7 +7,6 @@ module C = Configuration
 
 (* Should use the weight file only if the problem with the normalisation neuron
  * saving/loading is fixed. *)
-(* let weight_file = "weights/mrcnn.network" *)
 let src = "data/examples"
 let out = "data/"
 
@@ -35,7 +34,7 @@ let () =
       let img_arr = Image.img_to_ndarray src in
       let filename = List.hd (List.rev (String.split_on_char '/' src)) in
       (* add the bounding boxes and the masks to the picture *)
-      Visualise.display_masks img_arr rois masks;
+      Visualise.display_masks img_arr rois masks class_ids;
       Image.save (out ^ filename) Images.Jpeg (Image.img_of_ndarray img_arr);
       (* display classes, confidence and position *)
       Array.iteri (fun i id ->

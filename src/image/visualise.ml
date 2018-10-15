@@ -9,9 +9,10 @@ let apply_mask img mask colour =
         N.set img index (x *. (1. -. alpha) +. alpha *. colour.(k)))
     img
 
-let random_colours n =
-  let rnd () = float_of_int ((Random.int 180) + 10) in
-  Array.init n (fun _ -> [|rnd (); rnd (); rnd ()|])
+let rnd () = float_of_int ((Random.int 180) + 10)
+
+let random_colour () =
+  [|rnd (); rnd (); rnd ()|]
 
 let draw_hor_segment ?(width=2) img y x1 x2 colour =
   let h = (N.shape img).(0) in
@@ -44,14 +45,47 @@ let draw_box img box colour =
   draw_ver_segment img x1 y1 y2 colour;
   draw_ver_segment img x2 y1 y2 colour
 
-let display_masks img boxes masks (* class_ids class_names score *) =
+let draw_contour img mask colour =
+  let hm, wm = let s = N.shape img in s.(0) - 1, s.(1) - 1 in
+  let is_contour x y =
+    if N.get mask [|x; y|] <= 0.5 then false
+    else if x <= 1 || y <= 1 || x >= hm - 1 || y >= wm - 1 then true
+    else
+      let contour = ref false in
+      for i = x - 2 to x + 2 do
+        for j = y - 2 to y + 2 do
+          contour := !contour || N.get mask [|i; j|] <= 0.5;
+        done;
+      done;
+      !contour
+  in
+  for i = 0 to hm do
+    for j = 0 to wm do
+      if is_contour i j then
+        for k = 0 to 2 do
+        N.set img [|i; j; k|] colour.(k);
+        done;
+    done;
+  done
+
+let col_by_class = Hashtbl.create 5
+
+let display_masks ?(random_col=true) img boxes masks (class_ids : int array) =
   Random.self_init ();
   let n = (N.shape boxes).(0) in (* nb of instances *)
-  let colours = random_colours n in
   for i = 0 to n - 1 do
     let mask = N.(get_slice [[i];[];[]] masks |> squeeze ~axis:[|0|]) in
     let box = N.(get_slice [[i];[]] boxes |> squeeze ~axis:[|0|]) in
-    let colour = colours.(i) in
+    let colour =
+      if random_col then random_colour ()
+      else if Hashtbl.mem col_by_class class_ids.(i) then
+        Hashtbl.find col_by_class class_ids.(i)
+      else
+        let col = random_colour () in
+        Hashtbl.add col_by_class class_ids.(i) col;
+        col
+    in
     apply_mask img mask colour;
+    draw_contour img mask colour;
     draw_box img box colour;
   done
