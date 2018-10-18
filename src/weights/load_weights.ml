@@ -25,9 +25,8 @@ let load nn =
            "you should download the pre-trained Owl weights here \
             https://drive.google.com/file/d/1PMrPU-CQmW5dVlwNIPO4fbdW4AWdu02c/view \
             and place them at the root of the directory" in
-  let nodes = nn.topo in
   Array.iter (fun n ->
-      let param = Neuron.mkpar n.neuron in
+      let param = Neuron.get_parameters n.neuron in
       let len = String.length n.name in
       let name = if String.sub n.name (len - 3) 2 = "_p"
                     && String.sub n.name 0 3 = "rpn" then
@@ -41,7 +40,7 @@ let load nn =
         let w = N.cast_d2s w and
             b = N.cast_d2s b in
         param.(0) <- MrcnnUtil.pack w; param.(1) <- MrcnnUtil.pack b;
-        Neuron.update n.neuron param
+        Neuron.set_parameters n.neuron param
       )
       else if neuron_name = "normalisation" then (
         let b = H5.read_float_genarray h5_file (name ^ bn_beta) C_layout in
@@ -61,11 +60,8 @@ let load nn =
         let len = Dense.Ndarray.S.shape var in
         let var = Dense.Ndarray.S.reshape var [|1;1;1;len.(0)|] in
         param.(0) <- MrcnnUtil.pack b; param.(1) <- MrcnnUtil.pack g;
-        Neuron.update n.neuron param;
-        (function | Neuron.Normalisation a -> (a.mu <- (MrcnnUtil.pack mu))
-                  | _ -> invalid_arg "load_weights: normalisation") n.neuron;
-        (function | Neuron.Normalisation a -> (a.var <- (MrcnnUtil.pack var))
-                  | _ -> invalid_arg "load_weights: normalisation") n.neuron;
+        param.(2) <- MrcnnUtil.pack mu; param.(3) <- MrcnnUtil.pack var;
+        Neuron.set_parameters n.neuron param;
       )
       else if neuron_name = "linear" then (
         let w = H5.read_float_genarray h5_file (name ^ lin_W) C_layout in
@@ -75,10 +71,8 @@ let load nn =
         let b_dim = Array.append [|1|] (Dense.Ndarray.S.shape b) in
         let b = Dense.Ndarray.S.reshape b b_dim in
         param.(0) <- MrcnnUtil.pack w; param.(1) <- MrcnnUtil.pack b;
-        Neuron.update n.neuron param
+        Neuron.set_parameters n.neuron param
       )
-      else
-        ()
-    ) nodes;
+    ) nn.topo;
   save_weights nn out_name;
   H5.close h5_file

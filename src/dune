@@ -2,6 +2,7 @@
 (copy_files# mrcnn/*)
 ; (copy_files# weights/*)
 
+; hdf5_caml is used to convert the Keras weights into Owl weights.
 (library
   (name mrcnn)
 
