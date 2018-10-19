@@ -26,7 +26,7 @@ let load nn =
             https://drive.google.com/file/d/1PMrPU-CQmW5dVlwNIPO4fbdW4AWdu02c/view \
             and place them at the root of the directory" in
   Array.iter (fun n ->
-      let param = Neuron.get_parameters n.neuron in
+      let param = Neuron.save_weights n.neuron in
       let len = String.length n.name in
       let name = if String.sub n.name (len - 3) 2 = "_p"
                     && String.sub n.name 0 3 = "rpn" then
@@ -40,7 +40,7 @@ let load nn =
         let w = N.cast_d2s w and
             b = N.cast_d2s b in
         param.(0) <- MrcnnUtil.pack w; param.(1) <- MrcnnUtil.pack b;
-        Neuron.set_parameters n.neuron param
+        Neuron.load_weights n.neuron param
       )
       else if neuron_name = "normalisation" then (
         let b = H5.read_float_genarray h5_file (name ^ bn_beta) C_layout in
@@ -61,7 +61,7 @@ let load nn =
         let var = Dense.Ndarray.S.reshape var [|1;1;1;len.(0)|] in
         param.(0) <- MrcnnUtil.pack b; param.(1) <- MrcnnUtil.pack g;
         param.(2) <- MrcnnUtil.pack mu; param.(3) <- MrcnnUtil.pack var;
-        Neuron.set_parameters n.neuron param;
+        Neuron.load_weights n.neuron param;
       )
       else if neuron_name = "linear" then (
         let w = H5.read_float_genarray h5_file (name ^ lin_W) C_layout in
@@ -71,7 +71,7 @@ let load nn =
         let b_dim = Array.append [|1|] (Dense.Ndarray.S.shape b) in
         let b = Dense.Ndarray.S.reshape b b_dim in
         param.(0) <- MrcnnUtil.pack w; param.(1) <- MrcnnUtil.pack b;
-        Neuron.set_parameters n.neuron param
+        Neuron.load_weights n.neuron param
       )
     ) nn.topo;
   save_weights nn out_name;
