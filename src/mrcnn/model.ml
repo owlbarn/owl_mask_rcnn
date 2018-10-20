@@ -109,7 +109,6 @@ let extract_features detections mrcnn_masks image_meta =
   { rois; class_ids; scores; masks; }
 
 let detect () =
-  (* Owl_log.set_level Owl_log.DEBUG; *)
   let anchors = N.expand (Image.get_anchors C.image_shape) 3 in
   let nn = mrcnn (N.shape anchors).(1) in
   Graph.load_weights nn C.weight_file;

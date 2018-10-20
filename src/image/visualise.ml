@@ -89,3 +89,13 @@ let display_masks ?(random_col=true) img boxes masks (class_ids : int array) =
     draw_contour img mask colour;
     draw_box img box colour;
   done
+
+let print_results class_ids boxes scores =
+  Array.iteri (fun i id ->
+      Printf.printf "%13s: %.3f " MrcnnUtil.class_names.(id)
+        (N.get scores [|i|]);
+      let y1, x1, y2, x2 =
+        N.(int_of_float boxes.%{[|i; 0|]}, int_of_float boxes.%{[|i; 1|]},
+           int_of_float boxes.%{[|i; 2|]}, int_of_float boxes.%{[|i; 3|]}) in
+      Printf.printf "at [(%4d, %4d), (%4d, %4d)]\n" y1 x1 y2 x2)
+    class_ids

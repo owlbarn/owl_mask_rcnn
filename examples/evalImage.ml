@@ -24,7 +24,6 @@ let () =
   let fun_detect = Model.detect () in
 
   let eval src =
-    let classes = MrcnnUtil.class_names in
     let Model.({rois; class_ids; scores; masks}) = fun_detect src in
     if Array.length class_ids = 0 then
       Printf.printf "No objects detected on the picture :'(\n"
@@ -35,13 +34,7 @@ let () =
       Visualise.display_masks img_arr rois masks class_ids;
       Image.save (out ^ filename) Images.Jpeg (Image.img_of_ndarray img_arr);
       (* display classes, confidence and position *)
-      Array.iteri (fun i id ->
-          Printf.printf "%13s: %.3f " classes.(id) (N.get scores [|i|]);
-          let y1, x1, y2, x2 =
-            N.(int_of_float rois.%{[|i; 0|]}, int_of_float rois.%{[|i; 1|]},
-               int_of_float rois.%{[|i; 2|]}, int_of_float rois.%{[|i; 3|]}) in
-          Printf.printf "at [(%4d, %4d), (%4d, %4d)]\n" y1 x1 y2 x2)
-        class_ids
+      Visualise.print_results class_ids rois scores
     )
   in
   process_dir eval src
