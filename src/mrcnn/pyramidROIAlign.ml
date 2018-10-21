@@ -13,7 +13,7 @@ let pyramid_roi_align pool_shape = fun inputs ->
   let feature_maps = Array.sub inputs 2 4 in
 
   let y1, x1, y2, x2 =
-    let tmp = N.split ~axis:2 [|1;1;1;1|] boxes in (* check that *)
+    let tmp = N.split ~axis:2 [|1;1;1;1|] boxes in
     tmp.(0), tmp.(1), tmp.(2), tmp.(3) in
   let h = N.(y2 - y1)
   and w = N.(x2 - x1) in

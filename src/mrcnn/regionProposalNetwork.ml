@@ -3,8 +3,7 @@ open Owl
 open CGraph.Neural
 open CGraph.Graph
 
-(* *** REGION PROPOSAL NETWORK ***
- * Different names for each p_i? *)
+(* *** REGION PROPOSAL NETWORK *** *)
 let rpn_graph feature_map anchors_per_loc anchor_stride depth name =
   let h, w =
     let shape = Neuron.get_out_shape feature_map.neuron in
