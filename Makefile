@@ -3,7 +3,7 @@ default: build
 
 .PHONY: build run video clean
 build:
-	dune build examples/evalImage.ml
+	dune build examples/evalImage.exe
 
 run:
 	dune exec ./examples/evalImage.exe
