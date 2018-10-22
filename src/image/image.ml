@@ -346,7 +346,7 @@ let get_anchors image_shape =
                   backbone_shapes strides (float C.rpn_anchor_stride) in
   norm_boxes anchors image_shape
 
-let unmold_mask mask box image_shape =
+let unmold_mask mask box =
   let threshold = 0.5 in
   let y1, x1, y2, x2 =
     let box_i i = int_of_float N.(box.%{[|i|]}) in
@@ -356,10 +356,7 @@ let unmold_mask mask box image_shape =
                 [|0.; 0.; 1.; 1.|] [|y2 - y1; x2 - x1|] in
     let tmp2 = N.squeeze  ~axis:[|2|] tmp in
     N.map (fun elt -> if elt >= threshold then 1. else 0.) tmp2 in
-  let h, w = image_shape.(0), image_shape.(1) in
-  let full_mask = N.zeros [|h; w|] in
-  N.set_slice [[y1; y2 - 1]; [x1; x2 - 1]] full_mask mask;
-  full_mask
+  mask, y1, y2, x1, x2
 
 (* Reformats the results of the neural network in a more suitable format.
  * detections: [N, [y1, x1, y2, x2, class_id, score]]
@@ -370,8 +367,7 @@ let unmold_mask mask box image_shape =
 let unmold_detections detections mrcnn_mask original_image_shape image_shape
       window =
   (* Finds number of detections (detections is padded with zero but when valid,
-   * class_id should be >= 1. Should be called on a single batch slice.
-   * detections: *)
+   * class_id should be >= 1. Should be called on a single batch slice. *)
   let len = (N.shape detections).(0) in
   let n = let rec loop i =
             if i >= len then len
@@ -411,10 +407,12 @@ let unmold_detections detections mrcnn_mask original_image_shape image_shape
                |> N.squeeze ~axis:[|1|] in
 
   let full_masks =
-    let h, w = original_image_shape.(0), original_image_shape.(1) in
-    MrcnnUtil.init_slice ~axis:0 [|n; h; w|] (fun i ->
-        let mask = N.get_slice [[i];[];[]] masks |> N.squeeze ~axis:[|0|] in
+    let f =
+      (fun i ->
+        let tmp = N.get_slice [[i];[];[]] masks |> N.squeeze ~axis:[|0|] in
         let box = N.get_slice [[i];[]] boxes |> N.squeeze ~axis:[|0|] in
-        N.expand (unmold_mask mask box original_image_shape) 3) in
+        unmold_mask tmp box) in
+    f
+    in
 
   boxes, class_ids, scores, full_masks

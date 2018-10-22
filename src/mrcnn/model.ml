@@ -94,7 +94,7 @@ type results = {
     rois: N.arr;
     class_ids: int array;
     scores: N.arr;
-    masks: N.arr;
+    masks: int -> N.arr * int * int * int * int;
   }
 
 let extract_features detections mrcnn_masks image_meta =

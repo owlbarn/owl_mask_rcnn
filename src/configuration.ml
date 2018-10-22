@@ -42,7 +42,7 @@ let detection_max_instances = 100
 
 (* You can decrease the detection confidence if you want to detect more
  * objects *)
-let detection_min_confidence = 0.65
+let detection_min_confidence = 0.7
 
 let detection_nms_threshold = 0.3
 

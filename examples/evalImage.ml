@@ -6,7 +6,7 @@ open Mrcnn
 module C = Configuration
 
 let src = "data/examples"
-let out = "data/"
+let out = "results/"
 
 let rec process_dir f name =
   let is_dir =
@@ -29,7 +29,7 @@ let () =
       Printf.printf "No objects detected on the picture :'(\n"
     else (
       let img_arr = Image.img_to_ndarray src in
-      let filename = List.hd (List.rev (String.split_on_char '/' src)) in
+      let filename = Filename.basename src in
       (* add the bounding boxes and the masks to the picture *)
       Visualise.display_masks img_arr rois masks class_ids;
       Image.save (out ^ filename) Images.Jpeg (Image.img_of_ndarray img_arr);

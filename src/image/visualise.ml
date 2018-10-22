@@ -1,13 +1,20 @@
 open Owl
 module N = Dense.Ndarray.S
 
-let apply_mask img mask colour =
+let apply_mask img mask_xy colour =
+  let mask, y1, y2, x1, x2 = mask_xy in
+  let mask = N.expand ~hi:true mask 3 in
   let alpha = 0.5 in
-  N.iteri_nd (fun index x ->
-      let i, j, k = index.(0), index.(1), index.(2) in
-      if N.(mask.%{[|i; j|]}) >= 0.5 then
-        N.set img index (x *. (1. -. alpha) +. alpha *. colour.(k)))
-    img
+  for k = 0 to 2 do
+    let slice = [[y1; y2 - 1]; [x1; x2 - 1]; [k]] in
+    let rect = N.get_slice slice img in
+    let to_set = N.copy rect in
+    N.sub_scalar_ rect colour.(k);
+    N.mul_scalar_ rect alpha;
+    N.mul_ ~out:rect rect mask;
+    N.sub_ ~out:to_set to_set rect;
+    N.set_slice slice img to_set
+  done
 
 let rnd () = float_of_int ((Random.int 180) + 10)
 
@@ -45,22 +52,22 @@ let draw_box img box colour =
   draw_ver_segment img x1 y1 y2 colour;
   draw_ver_segment img x2 y1 y2 colour
 
-let draw_contour img mask colour =
-  let hm, wm = let s = N.shape img in s.(0) - 1, s.(1) - 1 in
-  let is_contour x y =
-    if N.get mask [|x; y|] <= 0.5 then false
-    else if x <= 1 || y <= 1 || x >= hm - 1 || y >= wm - 1 then true
+let draw_contour img mask_xy colour =
+  let mask, y1, y2, x1, x2 = mask_xy in
+  let is_contour y x =
+    if N.get mask [|y - y1; x - x1|] = 0. then false
+    else if y <= y1 + 1 || x <= x1 + 1 || y >= y2 - 2 || x >= x2 - 2 then true
     else
       let contour = ref false in
-      for i = x - 2 to x + 2 do
-        for j = y - 2 to y + 2 do
-          contour := !contour || N.get mask [|i; j|] <= 0.5;
+      for i = y - 2 to y + 2 do
+        for j = x - 2 to x + 2 do
+          contour := !contour || N.get mask [|i - y1; j - x1|] = 0.;
         done;
       done;
       !contour
   in
-  for i = 0 to hm do
-    for j = 0 to wm do
+  for i = y1 to y2 - 1 do
+    for j = x1 to x2 - 1 do
       if is_contour i j then
         for k = 0 to 2 do
         N.set img [|i; j; k|] colour.(k);
@@ -74,7 +81,7 @@ let display_masks ?(random_col=true) img boxes masks (class_ids : int array) =
   Random.self_init ();
   let n = (N.shape boxes).(0) in (* nb of instances *)
   for i = 0 to n - 1 do
-    let mask = N.(get_slice [[i];[];[]] masks |> squeeze ~axis:[|0|]) in
+    let mask = masks i in
     let box = N.(get_slice [[i];[]] boxes |> squeeze ~axis:[|0|]) in
     let colour =
       if random_col then random_colour ()
