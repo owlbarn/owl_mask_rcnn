@@ -10,7 +10,7 @@ let image_dim = 512
 (* Cannot be changed at the moment. *)
 let batch_size = 1
 
-(* Strides of each layer of the FPN pyramid of Resnet101. *)
+(* Strides of each layer of the FPN pyramid of ResNet101. *)
 let backbone_strides = [|4; 8; 16; 32; 64|]
 
 let fpn_classif_fc_layers_size = 1024

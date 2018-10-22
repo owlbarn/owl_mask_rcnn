@@ -10,6 +10,8 @@ _build/*
 current_network.txt
 data/*
 !data/examples/street.jpg
+results/*
+!results/output_1536.jpg
 *.txt
 debug*
 massif.*
