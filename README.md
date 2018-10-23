@@ -3,7 +3,7 @@
 This is an implementation of the Mask R-CNN network using OCaml's numerical library [Owl](https://github.com/owlbarn/owl). This network can be used to perform object detection, segmentation and classification. The implementation is based on [this paper](https://arxiv.org/abs/1703.06870) and ported from [this Keras implementation](https://github.com/matterport/Mask_RCNN).
 
 ## Instructions
-You need CamlImages and [Owl's **master branch**](https://github.com/owlbarn/owl).
+You need CamlImages and [Owl's **master branch**](https://github.com/owlbarn/owl) (make sure it is up-to-date).
 
 You need pre-trained weights to run the inference mode of the network. You can directly download the Owl weights **[here](https://drive.google.com/open?id=1MTnjFeSNB3Xuh471Lnk0iK-90AzTXf8k)** (they are converted from the Keras weights that can be found [here](https://github.com/matterport/Mask_RCNN/releases)).
 
