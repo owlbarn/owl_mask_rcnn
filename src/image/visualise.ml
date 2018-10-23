@@ -36,6 +36,7 @@ let draw_hor_segment ?(width=2) img y x1 x2 colour =
     done;
   done
 
+
 let draw_ver_segment ?(width=2) img x y1 y2 colour =
   let w = (N.shape img).(1) in
   let bound = max 0 ((min w (x + width)) - 1) in
