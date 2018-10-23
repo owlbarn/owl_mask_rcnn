@@ -2,16 +2,16 @@ open Owl
 module N = Dense.Ndarray.S
 module C = Configuration
 
-(* Preprocessing recommended for Resnet. *)
+(* Recommended preprocessing for ResNet. *)
 let add_rgb img rgb =
   let img = N.copy img in
   let r = N.get_slice [[];[];[0]] img in
   let g = N.get_slice [[];[];[1]] img in
   let b = N.get_slice [[];[];[2]] img in
 
-  let r = N.add_scalar r rgb.(0) in
-  let g = N.add_scalar g rgb.(1) in
-  let b = N.add_scalar b rgb.(2) in
+  N.add_scalar_ r rgb.(0);
+  N.add_scalar_ g rgb.(1);
+  N.add_scalar_ b rgb.(2);
 
   N.set_slice [[];[];[0]] img r;
   N.set_slice [[];[];[1]] img g;
@@ -64,7 +64,7 @@ let img_to_ndarray src =
 (* Converts the file src to an Ndarray of colors RGB. Keeps the original scale
  * and pads with 0's if necessary. *)
 let resize ?w ?h src =
-  let img = Images.load src [] in (* load parameters???? *)
+  let img = Images.load src [] in (* load parameters? *)
   let img_w, img_h = Images.size img in
   let w = match w with | Some w -> w | None -> img_w in
   let h = match h with | Some h -> h | None -> img_h in
@@ -73,7 +73,6 @@ let resize ?w ?h src =
     let scale_w = float w /. float img_w
     and scale_h = float h /. float img_h in
     min scale_w scale_h in
-  (* check that this always gives exactly 1024 for one of them? *)
   let window_w = int_of_float (Owl.Maths.round (scale *. (float img_w)))
   and window_h = int_of_float (Owl.Maths.round (scale *. (float img_h))) in
   let img = match img with
@@ -120,7 +119,7 @@ let compose_image_meta image_id original_shape image_shape window scale =
   set 4 6 (Array.map float image_shape);
   set 7 10 (Array.map float window);
   set 11 11 [|scale|];
-  (* from 12 to -1: all class ids are used *)
+  (* from 12 to last: all class ids are used *)
   meta
 
 let mold_inputs src =
@@ -143,18 +142,18 @@ let apply_box_deltas boxes deltas =
   let center_y = get_slice [[]; [0]] boxes + (height *$ 0.5) in
   let center_x = get_slice [[]; [1]] boxes + (width *$ 0.5) in
   (* Apply deltas *)
-  let height = height * exp (get_slice [[]; [2]] deltas) in
-  let width = width * exp (get_slice [[]; [3]] deltas) in
-  let center_y = center_y + ((get_slice [[]; [0]] deltas) * height) in
-  let center_x = center_x + ((get_slice [[]; [1]] deltas) * width) in
+  mul_ ~out:height height (exp (get_slice [[]; [2]] deltas));
+  mul_ ~out:width width (exp (get_slice [[]; [3]] deltas));
+  add_ ~out:center_y center_y ((get_slice [[]; [0]] deltas) * height);
+  add_ ~out:center_x center_x ((get_slice [[]; [1]] deltas) * width);
   (* Convert back *)
-  let half_height = height *$ 0.5
-  and half_width = width *$ 0.5 in
-  let y1 = center_y - half_height
-  and x1 = center_x - half_width
-  and y2 = center_y + half_height
-  and x2 = center_x + half_width in
-  let result = concatenate ~axis:1 [|y1; x1; y2; x2|] in
+  mul_scalar_ height 0.5;
+  mul_scalar_ width 0.5;
+  let y1 = center_y - height
+  and x1 = center_x - width in
+  add_ ~out:center_y center_y height; (* y2 *)
+  add_ ~out:center_x center_x width; (* x2 *)
+  let result = concatenate ~axis:1 [|y1; x1; center_y; center_x|] in
   result
 
 (* Clip boxes to image boundaries.
@@ -164,24 +163,24 @@ let clip_boxes boxes window =
   let edges = split [|1; 1; 1; 1|] window in
   let cols = split ~axis:1 [|1; 1; 1; 1|] boxes in
   (* relies on the broadcast operation *)
-  let y1 = max2 (min2 cols.(0) edges.(2)) edges.(0) in
-  let x1 = max2 (min2 cols.(1) edges.(3)) edges.(1) in
-  let y2 = max2 (min2 cols.(2) edges.(2)) edges.(0) in
-  let x2 = max2 (min2 cols.(3) edges.(3)) edges.(1) in
-  concatenate ~axis:1 [|y1; x1; y2; x2|]
+  min2_ cols.(0) edges.(2); max2_ cols.(0) edges.(0);
+  min2_ cols.(1) edges.(3); max2_ cols.(1) edges.(1);
+  min2_ cols.(2) edges.(2); max2_ cols.(2) edges.(0);
+  min2_ cols.(3) edges.(3); max2_ cols.(3) edges.(1);
+  concatenate ~axis:1 cols
+
+let _shift = N.of_array [|0.; 0.; 1.; 1.|] [|4|]
 
 (* this should be changed if batch size > 1 *)
 let norm_boxes boxes shape =
   let h, w = float shape.(0), float shape.(1) in
-  let scale = N.((of_array [|h; w; h; w|] [|4|]) -$ 1.) in
-  let shift = N.of_array [|0.; 0.; 1.; 1.|] [|4|] in
-  N.((boxes - shift) / scale)
+  let scale = N.of_array [|h; w; h; w|] [|4|] in N.sub_scalar_ scale 1.;
+  N.((boxes - _shift) / scale)
 
 let denorm_boxes boxes shape =
   let h, w = float shape.(0), float shape.(1) in
-  let scale = N.((of_array [|h; w; h; w|] [|4|]) -$ 1.) in
-  let shift = N.of_array [|0.; 0.; 1.; 1.|] [|4|] in
-  N.(round ((boxes * scale) + shift))
+  let scale = N.of_array [|h; w; h; w|] [|4|] in N.sub_scalar_ scale 1.;
+  N.(round ((boxes * scale) + _shift))
 
 let area box = (box.(2) -. box.(0)) *. (box.(3) -. box.(1))
 
@@ -227,7 +226,7 @@ let non_max_suppression boxes scores max_output_size iou_threshold =
   done;
   Array.map (fun i -> ixs.(i)) (Array.sub selected 0 !size)
 
-let crop_and_resize_box ?(extrapolation_value=0.) image box shape =
+let crop_and_resize_box ?out ?(extrapolation_value=0.) image box shape =
   let y1, x1, y2, x2 = box.(0), box.(1), box.(2), box.(3) in
   let img_h, img_w, dep = let sh = (N.shape image) in sh.(0), sh.(1), sh.(2) in
   let img_hf, img_wf = float img_h, float img_w in
@@ -237,7 +236,10 @@ let crop_and_resize_box ?(extrapolation_value=0.) image box shape =
                 else 0. in
   let w_scale = if crop_w > 1 then (x2 -. x1) *. (img_wf -. 1.) /. (crop_wf -. 1.)
                 else 0. in
-  let result = N.empty [|crop_h; crop_w; dep|] in
+  let result = match out with
+    | Some out -> out
+    | None -> N.empty [|crop_h; crop_w; dep|]
+  in
   let set_res y x d v = N.set result [|y; x; d|] v in
 
   for y = 0 to crop_h - 1 do
@@ -281,20 +283,21 @@ let crop_and_resize_box ?(extrapolation_value=0.) image box shape =
   result
 
 (* For each box in boxes, crops the box out of the image and resize it to
- * crop_shape using bilinear inerpolation.
+ * crop_shape using bilinear interpolation.
  * The boxes should be in normalised coordinates.
  * Returns a tensor of shape [num_boxes, crop_shape.(0), crop_shape.(1),
  * depth].
  * Algorithm ported from https://github.com/tensorflow/tensorflow/blob/
  * master/tensorflow/core/kernels/crop_and_resize_op.cc#L202 *)
 let crop_and_resize image boxes crop_shape =
-  let n = (N.shape boxes).(0) in
-  let results = Array.make n (N.empty [||]) in
+  let n, d = (N.shape boxes).(0), (N.shape image).(2) in
+  let results = N.empty Array.(append (append [|n|] crop_shape) [|d|]) in
   for i = 0 to n - 1 do
     let box = Array.init 4 (fun j -> N.get boxes [|i; j|]) in
-    results.(i) <- N.expand (crop_and_resize_box image box crop_shape) 4;
+    let out = N.squeeze ~axis:[|0|] (N.sub_left results i 1) in
+    crop_and_resize_box ~out image box crop_shape |> ignore
   done;
-  N.concatenate ~axis:0 results
+  results
 
 
 let compute_backbone_shapes image_shape strides =
@@ -302,7 +305,7 @@ let compute_backbone_shapes image_shape strides =
       Array.init 2 (fun j -> ceil ((float image_shape.(j)) /. strides.(i))))
 
 let generate_anchors scale ratios img_shape feature_stride anchor_stride =
-  let ratios = N.of_array ratios [|(Array.length ratios)|] in
+  let ratios = N.of_array ratios [|Array.length ratios|] in
   let n = (N.shape ratios).(0) in
   let scale_arr = N.create (N.shape ratios) scale in
   let heights = N.((scale_arr / sqrt ratios) /$ 2.) in
@@ -354,9 +357,9 @@ let unmold_mask mask box =
   let mask =
     let tmp = crop_and_resize_box (N.expand ~hi:true mask 3)
                 [|0.; 0.; 1.; 1.|] [|y2 - y1; x2 - x1|] in
-    let tmp2 = N.squeeze  ~axis:[|2|] tmp in
+    let tmp2 = N.squeeze ~axis:[|2|] tmp in
     N.map (fun elt -> if elt >= threshold then 1. else 0.) tmp2 in
-  mask, y1, y2, x1, x2
+  mask, y1, x1, y2, x2
 
 (* Reformats the results of the neural network in a more suitable format.
  * detections: [N, [y1, x1, y2, x2, class_id, score]]

@@ -2,7 +2,7 @@ open Owl
 module N = Dense.Ndarray.S
 
 let apply_mask img mask_xy colour =
-  let mask, y1, y2, x1, x2 = mask_xy in
+  let mask, y1, x1, y2, x2 = mask_xy in
   let mask = N.expand ~hi:true mask 3 in
   let alpha = 0.5 in
   for k = 0 to 2 do
@@ -18,8 +18,7 @@ let apply_mask img mask_xy colour =
 
 let rnd () = float_of_int ((Random.int 180) + 10)
 
-let random_colour () =
-  [|rnd (); rnd (); rnd ()|]
+let random_colour () = [|rnd (); rnd (); rnd ()|]
 
 let draw_hor_segment ?(width=2) img y x1 x2 colour =
   let h = (N.shape img).(0) in
@@ -44,8 +43,7 @@ let draw_ver_segment ?(width=2) img x y1 y2 colour =
   done
 
 let draw_box img box colour =
-  let int_box = Array.map int_of_float
-                  (Array.init 4 (fun i -> N.(box.%{[|i|]}))) in
+  let int_box = Array.init 4 (fun i -> int_of_float N.(box.%{[|i|]})) in
   let y1, x1, y2, x2 = int_box.(0), int_box.(1), int_box.(2), int_box.(3) in
   draw_hor_segment img y1 x1 x2 colour;
   draw_hor_segment img y2 x1 x2 colour;
@@ -53,10 +51,11 @@ let draw_box img box colour =
   draw_ver_segment img x2 y1 y2 colour
 
 let draw_contour img mask_xy colour =
-  let mask, y1, y2, x1, x2 = mask_xy in
+  let mask, y1, x1, y2, x2 = mask_xy in
+  let ym, xm = y2 - 1, x2 - 1 in
   let is_contour y x =
     if N.get mask [|y - y1; x - x1|] = 0. then false
-    else if y <= y1 + 1 || x <= x1 + 1 || y >= y2 - 2 || x >= x2 - 2 then true
+    else if y <= y1 + 1 || x <= x1 + 1 || y >= ym - 1 || x >= xm - 1 then true
     else
       let contour = ref false in
       for i = y - 2 to y + 2 do
@@ -66,8 +65,8 @@ let draw_contour img mask_xy colour =
       done;
       !contour
   in
-  for i = y1 to y2 - 1 do
-    for j = x1 to x2 - 1 do
+  for i = y1 to ym do
+    for j = x1 to xm do
       if is_contour i j then
         for k = 0 to 2 do
         N.set img [|i; j; k|] colour.(k);
@@ -75,9 +74,9 @@ let draw_contour img mask_xy colour =
     done;
   done
 
-let col_by_class = Hashtbl.create 5
+let col_by_class : (int, float array) Hashtbl.t = Hashtbl.create 5
 
-let display_masks ?(random_col=true) img boxes masks (class_ids : int array) =
+let display_masks ?(random_col=true) img boxes masks class_ids =
   Random.self_init ();
   let n = (N.shape boxes).(0) in (* nb of instances *)
   for i = 0 to n - 1 do

@@ -9,10 +9,8 @@ module C = Configuration
 let proposal_layer proposal_count nms_threshold = fun inputs ->
   (* [batch, number of ROIs, 1] where 1 is the foreground class confidence. *)
   let scores = N.get_slice [[]; []; [1]] inputs.(0) in
-  (* N.print scores; *)
   (* [batch, number of ROIs, 4] *)
   let deltas = N.(inputs.(1) * C.rpn_bbox_std_dev) in
-  (* N.print deltas; *)
   let anchors = inputs.(2) in
 
   let pre_nms_limit = min 6000 (N.shape anchors).(1) in

@@ -56,11 +56,11 @@ let gather_slice ?(axis=0) t ix =
               (fun i -> N.get_slice (first @ ([[ix.(i)]] @ last)) t) in
   if Array.length arr > 0 then
     N.concatenate ~axis arr
-  else
-    (* copy is useful?? *)
-    let sh = Array.copy (N.shape t) in
+  else (
+    let sh = N.shape t in
     sh.(axis) <- 0;
     N.empty sh
+  )
 
 let init_slice ?(axis=0) shape slice =
   let dim = Array.length shape in

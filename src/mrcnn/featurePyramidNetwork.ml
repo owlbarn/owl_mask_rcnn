@@ -7,7 +7,7 @@ module U = MrcnnUtil
 module C = Configuration
 
 (* *** Feature Pyramid Network *** *)
-(* TODO: need TimeDistributed and PyramidROIAlign *)
+
 let fpn_classifier_graph rois feature_maps meta
       pool_size num_classes fc_layers_size =
   let pyramid_fun = PRA.pyramid_roi_align [|pool_size; pool_size|] in
@@ -19,8 +19,9 @@ let fpn_classifier_graph rois feature_maps meta
                              [|1; 1|] ~padding:VALID ~name:"mrcnn_class_conv1")
     |> U.time_distributed (normalisation ~name:"mrcnn_class_bn1")
     |> activation Activation.Relu
-    |> U.time_distributed (conv2d [|1; 1; fc_layers_size; fc_layers_size|]
-                                [|1; 1|] ~padding:VALID ~name:"mrcnn_class_conv2")
+    |> U.time_distributed
+         (conv2d [|1; 1; fc_layers_size; fc_layers_size|]
+            [|1; 1|] ~padding:VALID ~name:"mrcnn_class_conv2")
     |> U.time_distributed (normalisation ~name:"mrcnn_class_bn2")
     |> activation Activation.Relu in
 
