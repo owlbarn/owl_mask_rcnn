@@ -10,6 +10,7 @@ _build/*
 current_network.txt
 data/*
 !data/examples/street.jpg
+!data/examples/buildings.jpg
 results/*
 !results/output_1536.jpg
 *.txt

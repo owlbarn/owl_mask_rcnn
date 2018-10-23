@@ -25,7 +25,6 @@ let fpn_classifier_graph rois feature_maps meta
     |> U.time_distributed (normalisation ~name:"mrcnn_class_bn2")
     |> activation Activation.Relu in
 
-  (* squeeze dim 2 and 3?*)
   let shared = reshape [|C.post_nms_rois; fc_layers_size|]
                  ~name:"pool_squeeze" x in
   let mrcnn_class_logits =

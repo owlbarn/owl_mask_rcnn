@@ -1,5 +1,7 @@
 open Owl
+
 module N = Dense.Ndarray.S
+
 
 let apply_mask img mask_xy colour =
   let mask, y1, x1, y2, x2 = mask_xy in
@@ -16,9 +18,12 @@ let apply_mask img mask_xy colour =
     N.set_slice slice img to_set
   done
 
-let rnd () = float_of_int ((Random.int 180) + 10)
 
-let random_colour () = [|rnd (); rnd (); rnd ()|]
+let rnd_char () = float_of_int ((Random.int 180) + 10)
+
+
+let random_colour () = [|rnd_char (); rnd_char (); rnd_char ()|]
+
 
 let draw_hor_segment ?(width=2) img y x1 x2 colour =
   let h = (N.shape img).(0) in
@@ -42,6 +47,7 @@ let draw_ver_segment ?(width=2) img x y1 y2 colour =
     done;
   done
 
+
 let draw_box img box colour =
   let int_box = Array.init 4 (fun i -> int_of_float N.(box.%{[|i|]})) in
   let y1, x1, y2, x2 = int_box.(0), int_box.(1), int_box.(2), int_box.(3) in
@@ -49,6 +55,7 @@ let draw_box img box colour =
   draw_hor_segment img y2 x1 x2 colour;
   draw_ver_segment img x1 y1 y2 colour;
   draw_ver_segment img x2 y1 y2 colour
+
 
 let draw_contour img mask_xy colour =
   let mask, y1, x1, y2, x2 = mask_xy in
@@ -74,7 +81,9 @@ let draw_contour img mask_xy colour =
     done;
   done
 
+
 let col_by_class : (int, float array) Hashtbl.t = Hashtbl.create 5
+
 
 let display_masks ?(random_col=true) img boxes masks class_ids =
   Random.self_init ();
@@ -95,6 +104,7 @@ let display_masks ?(random_col=true) img boxes masks class_ids =
     draw_contour img mask colour;
     draw_box img box colour;
   done
+
 
 let print_results class_ids boxes scores =
   Array.iteri (fun i id ->

@@ -1,11 +1,12 @@
 open Owl
 
-open CGraph.Neural
-open CGraph.Neural.Graph
+open CGraph.Graph
+module Activation = CGraph.Neural.Activation
 
 (* *** RESNET101 ***
  * The code is heavily inspired by
- * https://github.com/keras-team/keras-applications/blob/master/keras_applications/resnet50.py *)
+ * https://github.com/keras-team/keras-applications/blob/master/
+ * keras_applications/resnet50.py *)
 
 let id_block input kernel_size filters stage block input_layer =
   let suffix = string_of_int stage ^ block in
@@ -19,7 +20,8 @@ let id_block input kernel_size filters stage block input_layer =
     |> normalisation ~name:(bn_name^"2a")
     |> activation Activation.Relu
 
-    |> conv2d [|kernel_size; kernel_size; f1; f2|] [|1; 1|] ~padding:SAME ~name:(conv_name^"2b")
+    |> conv2d [|kernel_size; kernel_size; f1; f2|] [|1; 1|]
+         ~padding:SAME ~name:(conv_name^"2b")
     |> normalisation ~name:(bn_name^"2b")
     |> activation Activation.Relu
 
@@ -28,6 +30,7 @@ let id_block input kernel_size filters stage block input_layer =
 
   add [|x; input_layer|]
   |> activation ~name:act_name Activation.Relu
+
 
 let conv_block input kernel_size filters strides stage block input_layer =
   let suffix = string_of_int stage ^ block in
@@ -41,7 +44,8 @@ let conv_block input kernel_size filters strides stage block input_layer =
     |> normalisation ~name:(bn_name^"2a")
     |> activation Activation.Relu
 
-    |> conv2d [|kernel_size; kernel_size; f1; f2|] [|1; 1|] ~padding:SAME ~name:(conv_name^"2b")
+    |> conv2d [|kernel_size; kernel_size; f1; f2|] [|1; 1|]
+         ~padding:SAME ~name:(conv_name^"2b")
     |> normalisation ~name:(bn_name^"2b")
     |> activation Activation.Relu
 
@@ -56,9 +60,10 @@ let conv_block input kernel_size filters strides stage block input_layer =
   add [|x; shortcut|]
   |> activation ~name:act_name Activation.Relu
 
-let resnet101 input_image =
+
+let resnet101 input_layer =
   let c1 =
-    input_image
+    input_layer
     |> padding2d [|[|3; 3|]; [|3; 3|]|]
     |> conv2d [|7; 7; 3; 64|] [|2; 2|] ~padding:VALID ~name:"conv1"
     |> normalisation ~name:"bn_conv1"
@@ -79,8 +84,9 @@ let resnet101 input_image =
   let x =
     conv_block 512 3 (256, 256, 1024) [|2; 2|] 4 "a" c3 in
   let y = ref x in
-  for i = 0 to 21 do  (* code('b') is 98 *)
-    y := id_block 1024 3 (256, 256, 1024) 4 (Char.escaped (Char.chr (98 + i))) !y
+  for i = 0 to 21 do (* code('b') is 98 *)
+    let block_letter = Char.escaped (Char.chr (98 + i)) in
+    y := id_block 1024 3 (256, 256, 1024) 4 block_letter !y
   done;
   let c4 = !y in
 

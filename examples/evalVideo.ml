@@ -37,7 +37,7 @@ let cnt = ref 0
 
 let eval_img src =
   cnt := !cnt + 1;
-  Owl_log.info "Processing frame #%d..." !cnt;
+  Owl_log.info "Processing frame #%d (%s)..." !cnt (Filename.basename src);
   let Model.({rois; class_ids; masks; _}) = fun_detect src in
   if Array.length class_ids <> 0 then
     let img_arr = Image.img_to_ndarray src in
