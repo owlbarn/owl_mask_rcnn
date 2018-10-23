@@ -128,6 +128,10 @@ let detect () =
   let anchors = N.expand (Image.get_anchors C.image_shape) 3 in
   (* Build the network and load the weights. *)
   let nn = mrcnn (N.shape anchors).(1) in
+  if not (Sys.file_exists C.weight_file) then
+    failwith "You have to download the pre-trained weights here \
+      https://drive.google.com/open?id=1MTnjFeSNB3Xuh471Lnk0iK-90AzTXf8k \
+      and place them at the root of the owl-mask-rcnn directory.";
   Graph.load_weights nn C.weight_file;
   Owl_log.info "Weights loaded!";
   (* Optimise the network. *)
