@@ -123,7 +123,9 @@ let compose_image_meta image_id original_shape image_shape window scale =
   meta
 
 let mold_inputs src =
-  let h, w = C.image_shape.(0), C.image_shape.(1) in
+  let h, w =
+    let shape = C.get_image_shape () in
+    shape.(0), shape.(1) in
   let molded_image, original_shape, window, scale, _ = resize ~w ~h src in
   let processed_image = preprocess molded_image in
   let image_meta = compose_image_meta 0 original_shape

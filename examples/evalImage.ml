@@ -5,9 +5,19 @@ module N = Dense.Ndarray.S
 open Mrcnn
 module C = Configuration
 
-(* the name of the folder containing the pictures to process *)
+(* Script to display the results of the evaluation of Mask R-CNN on images.
+ * You can modify the three following variable to suit your needs. *)
+
+(* Your image will be resized to a square of this dimension before being fed
+ * to the network. It has to be a multiple of 64. A larger size means a more
+ * accurate result but more time and memory to process. *)
+let () = C.set_image_size 768
+
+(* The location of the folder containing the pictures to process, or just the
+ * filename of a picture. *)
 let src = "data/examples"
-(* the name of the folder to store the results *)
+
+(* The location of the folder to store the results. *)
 let out = "results/"
 
 
@@ -41,7 +51,7 @@ let () =
       Visualise.display_masks img_arr rois masks class_ids;
       let out_loc = out ^ filename in
       Image.save out_loc Images.Jpeg (Image.img_of_ndarray img_arr);
-      Owl_log.info "Output picture written at %s." out_loc;
+      Owl_log.info "Output picture written to %s." out_loc;
       (* display classes, confidence and position *)
       Visualise.print_results class_ids rois scores
     )

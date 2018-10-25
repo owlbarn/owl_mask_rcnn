@@ -18,12 +18,13 @@ module C = Configuration
 (* *** MASK R-CNN *** *)
 
 let mrcnn num_anchors =
-  if C.image_shape.(0) mod 64 <> 0 || C.image_shape.(1) mod 64 <> 0 then
+  let image_shape = C.get_image_shape () in
+  if image_shape.(0) mod 64 <> 0 || image_shape.(1) mod 64 <> 0 then
     invalid_arg "Image height and width must be divisible by 64";
 
   let inputs = inputs
                  ~names:[|"input_image"; "input_image_meta"; "input_anchors"|]
-                 [|C.image_shape; [|C.image_meta_size|]; [|num_anchors; 4|]|] in
+                 [|image_shape; [|C.image_meta_size|]; [|num_anchors; 4|]|] in
   let input_image = inputs.(0)
   and input_image_meta = inputs.(1)
   and input_anchors = inputs.(2) in
@@ -125,7 +126,7 @@ let extract_features detections mrcnn_masks image_meta =
 
 let detect () =
   (* Generate the anchors. *)
-  let anchors = N.expand (Image.get_anchors C.image_shape) 3 in
+  let anchors = N.expand (Image.get_anchors (C.get_image_shape ())) 3 in
   (* Build the network and load the weights. *)
   let nn = mrcnn (N.shape anchors).(1) in
   if not (Sys.file_exists C.weight_file) then

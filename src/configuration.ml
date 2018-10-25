@@ -5,7 +5,14 @@ module N = Dense.Ndarray.S
 
 let name = "Mask R-CNN"
 
-let image_dim = 512
+let image_dim = ref 768
+
+let get_image_size () = !image_dim
+let set_image_size size = image_dim := size
+
+let get_image_shape () =
+  let size = get_image_size () in
+  [|size; size; 3|]
 
 (* Cannot be changed at the moment. *)
 let batch_size = 1
@@ -45,8 +52,6 @@ let detection_max_instances = 100
 let detection_min_confidence = 0.7
 
 let detection_nms_threshold = 0.3
-
-let image_shape = [|image_dim; image_dim; 3|]
 
 let image_meta_size = 1 + 3 + 3 + 4 + 1 + num_classes
 
