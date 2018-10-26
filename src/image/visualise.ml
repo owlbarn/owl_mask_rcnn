@@ -116,3 +116,21 @@ let print_results class_ids boxes scores =
            int_of_float boxes.%{[|i; 2|]}, int_of_float boxes.%{[|i; 3|]}) in
       Printf.printf "at [(%4d, %4d), (%4d, %4d)]\n" y1 x1 y2 x2)
     class_ids
+
+
+let results_to_json class_ids boxes scores =
+  let n = Array.length class_ids in
+  let b = Buffer.create 150 in
+  let json_arr = Array.init n
+    (fun i ->
+      let y1, x1, y2, x2 =
+        N.(int_of_float boxes.%{[|i; 0|]}, int_of_float boxes.%{[|i; 1|]},
+           int_of_float boxes.%{[|i; 2|]}, int_of_float boxes.%{[|i; 3|]}) in
+      Printf.sprintf "{\"class\":\"%13s\", \"conf\":\"%.3f\",\
+                      \"pos\":\"(%4d, %4d), (%4d, %4d)\"}"
+      MrcnnUtil.class_names.(class_ids.(i)) (N.get scores [|i|]) y1 x1 y2 x2)
+    in
+  Array.iter (fun s -> Buffer.add_string b s;
+                       Buffer.add_char b ',') json_arr;
+  (* TODO: deal with no objects detected *)
+  Printf.printf "%s" (Buffer.sub b 0 (Buffer.length b - 1))
