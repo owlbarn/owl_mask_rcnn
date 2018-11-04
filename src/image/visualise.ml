@@ -121,6 +121,7 @@ let print_results class_ids boxes scores =
 let results_to_json class_ids boxes scores =
   let n = Array.length class_ids in
   let b = Buffer.create 150 in
+  Buffer.add_char b '[';
   let json_arr = Array.init n
     (fun i ->
       let y1, x1, y2, x2 =
@@ -130,7 +131,8 @@ let results_to_json class_ids boxes scores =
                       \"pos\":\"(%4d, %4d), (%4d, %4d)\"}"
       MrcnnUtil.class_names.(class_ids.(i)) (N.get scores [|i|]) y1 x1 y2 x2)
     in
-  Array.iter (fun s -> Buffer.add_string b s;
-                       Buffer.add_char b ',') json_arr;
+  Array.iteri (fun i s -> Buffer.add_string b s;
+                        if i <> n - 1 then Buffer.add_char b ',') json_arr;
   (* TODO: deal with no objects detected *)
-  Printf.printf "%s" (Buffer.sub b 0 (Buffer.length b - 1))
+  Buffer.add_char b ']';
+  Buffer.contents b

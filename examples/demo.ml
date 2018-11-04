@@ -5,18 +5,14 @@ module N = Dense.Ndarray.S
 open Mrcnn
 module C = Configuration
 
-(* Script to display the results of the evaluation of Mask R-CNN on images.
- * You can modify the three following variable to suit your needs. *)
 
-(* Your image will be resized to a square of this dimension before being fed
- * to the network. It has to be a multiple of 64. A larger size means a more
- * accurate result but more time and memory to process. *)
+(* Script used for the web demo of Mask R-CNN. *)
 let () = C.set_image_size 1024
 
 
 let () =
-  (* Build the network once. *)
   Owl_log.set_level FATAL;
+  (* Build the network once. *)
   let fun_detect = Model.detect () in
 
   let eval src =
@@ -25,11 +21,12 @@ let () =
     let filename = Filename.basename src in
     (* add the bounding boxes and the masks to the picture *)
     Visualise.display_masks img_arr rois masks class_ids;
-    let out_loc = "results/" ^ filename in
+    let out_loc = "../frontend/results/" ^ filename in
     Image.save out_loc Images.Jpeg (Image.img_of_ndarray img_arr);
-    (* display classes, confidence and position *)
-    Printf.printf "%s\n" out_loc;
-    Visualise.results_to_json class_ids rois scores
+    if Array.length class_ids > 0 then
+      (* display classes, confidence and position *)
+      Visualise.print_results class_ids rois scores
+    else Printf.printf "No objects detected.\n"
   in
 
   eval Sys.argv.(1)
