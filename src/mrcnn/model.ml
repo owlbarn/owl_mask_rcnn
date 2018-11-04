@@ -68,7 +68,7 @@ let mrcnn num_anchors =
   (* removed rpn_class_logits because it is useless for inference *)
   let rpns = Array.init 5
                (fun i -> RPN.rpn_graph rpn_feature_maps.(i)
-                           nb_ratios C.rpn_anchor_stride tdps
+                           nb_ratios C.rpn_anchor_stride
                            ("_p" ^ string_of_int (i + 2))) in
   let rpn_class = concatenate 1 ~name:"rpn_class"
                     (Array.init 5 (fun i -> rpns.(i).(0))) in
@@ -84,7 +84,7 @@ let mrcnn num_anchors =
 
   (* Feature Pyramid Network Classifier: associates a class to each proposal
    * and refines the bounding box for that class even more. *)
-  let _, mrcnn_class, mrcnn_bbox =
+  let mrcnn_class, mrcnn_bbox =
     FPN.fpn_classifier_graph rpn_rois mrcnn_feature_maps input_image_meta
       C.pool_size C.num_classes C.fpn_classif_fc_layers_size in
 

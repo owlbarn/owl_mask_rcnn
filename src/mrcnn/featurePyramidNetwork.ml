@@ -6,8 +6,20 @@ module PRA = PyramidROIAlign
 module U = MrcnnUtil
 module C = Configuration
 
-(* *** Feature Pyramid Network *** *)
+(* *** FEATURE PYRAMID NETWORK ***
+ * Associates a probability to each class for each proposal and refines the
+ * bounding box for each class even more. *)
 
+(* rois: [batch, N, (y1, x1, y2, x2)],
+ * feature_maps: feature maps from different levels of the backbone,
+ * image_meta: [batch, (image info)],
+ * pool_size: dimension of the square feature map of ROIAlign,
+ * num_classes: number of different classes,
+ * fc_layers_size: size of the fully connected layers.
+ * Returns:
+ * mrcnn_probs: [batch, number of ROIs, number of classes]
+ * mrcnn_bbox: [batch, number of ROIs, num classes, (dx, dy, log(dh), log(dw)]
+ *             further bounding box refinement for each class. *)
 let fpn_classifier_graph rois feature_maps meta
       pool_size num_classes fc_layers_size =
   let pyramid_fun = PRA.pyramid_roi_align [|pool_size; pool_size|] in
@@ -37,8 +49,18 @@ let fpn_classifier_graph rois feature_maps meta
 
   let mrcnn_bbox = reshape [|C.post_nms_rois; num_classes; 4|]
                      ~name:"mrcnn_bbox" x in
-  mrcnn_class_logits, mrcnn_probs, mrcnn_bbox
+  (* mrcnn_class_logits is useless in inference mode *)
+  (* mrcnn_class_logits, *) mrcnn_probs, mrcnn_bbox
 
+
+(* rois: [batch, N, (y1, x1, y2, x2),
+ * feature_maps: feature maps from different levels of the backbone,
+ * image_meta: [batch, (image info)],
+ * pool_size: dimension of the square feature map of ROIAlign,
+ * num_classes: number of different classes,
+ * fc_layers_size: size of the fully connected layers.
+ * Returns:
+ * masks: [batch, number of ROIs, pool_size, pool_size, num_classes]. *)
 let build_fpn_mask_graph rois feature_maps image_meta pool_size num_classes =
   let pyramid_fun = PRA.pyramid_roi_align [|pool_size; pool_size|] in
   MrcnnUtil.delay_lambda_array

@@ -3,6 +3,7 @@ open Owl
 module N = Dense.Ndarray.S
 
 
+(* Applies colour on the picture at the mask position. *)
 let apply_mask img mask_xy colour =
   let mask, y1, x1, y2, x2 = mask_xy in
   let mask = N.expand ~hi:true mask 3 in
@@ -49,6 +50,7 @@ let draw_ver_segment ?(width=2) img x y1 y2 colour =
   done
 
 
+(* Draws a rectangle of colour on an image. *)
 let draw_box img box colour =
   let int_box = Array.init 4 (fun i -> int_of_float N.(box.%{[|i|]})) in
   let y1, x1, y2, x2 = int_box.(0), int_box.(1), int_box.(2), int_box.(3) in
@@ -58,6 +60,7 @@ let draw_box img box colour =
   draw_ver_segment img x2 y1 y2 colour
 
 
+(* Finds the edges of the mask and highlights them. *)
 let draw_contour img mask_xy colour =
   let mask, y1, x1, y2, x2 = mask_xy in
   let ym, xm = y2 - 1, x2 - 1 in
@@ -83,9 +86,13 @@ let draw_contour img mask_xy colour =
   done
 
 
+(* Stores the colour used for each class. *)
 let col_by_class : (int, float array) Hashtbl.t = Hashtbl.create 5
 
 
+(* Applies the masks, draws rectangles on the bounding boxes and highlights the
+ * edges of the masks. If random_col is false, systematically uses the same
+ * colour for elements of the same class. *)
 let display_masks ?(random_col=true) img boxes masks class_ids =
   Random.self_init ();
   let n = (N.shape boxes).(0) in (* nb of instances *)
@@ -96,10 +103,11 @@ let display_masks ?(random_col=true) img boxes masks class_ids =
       if random_col then random_colour ()
       else if Hashtbl.mem col_by_class class_ids.(i) then
         Hashtbl.find col_by_class class_ids.(i)
-      else
+      else (
         let col = random_colour () in
         Hashtbl.add col_by_class class_ids.(i) col;
         col
+      )
     in
     apply_mask img mask colour;
     draw_contour img mask colour;
@@ -107,6 +115,7 @@ let display_masks ?(random_col=true) img boxes masks class_ids =
   done
 
 
+(* Displays the class, confidence and position of each detection. *)
 let print_results class_ids boxes scores =
   Array.iteri (fun i id ->
       Printf.printf "%13s: %.3f " MrcnnUtil.class_names.(id)
@@ -118,6 +127,7 @@ let print_results class_ids boxes scores =
     class_ids
 
 
+(* Same as print_results but returns a json string with the information. *)
 let results_to_json class_ids boxes scores =
   let n = Array.length class_ids in
   let b = Buffer.create 150 in
@@ -130,9 +140,9 @@ let results_to_json class_ids boxes scores =
       Printf.sprintf "{\"class\":\"%13s\", \"conf\":\"%.3f\",\
                       \"pos\":\"(%4d, %4d), (%4d, %4d)\"}"
       MrcnnUtil.class_names.(class_ids.(i)) (N.get scores [|i|]) y1 x1 y2 x2)
-    in
-  Array.iteri (fun i s -> Buffer.add_string b s;
-                        if i <> n - 1 then Buffer.add_char b ',') json_arr;
-  (* TODO: deal with no objects detected *)
+  in
+  Array.iteri (fun i s ->
+      Buffer.add_string b s;
+      if i <> n - 1 then Buffer.add_char b ',') json_arr;
   Buffer.add_char b ']';
   Buffer.contents b

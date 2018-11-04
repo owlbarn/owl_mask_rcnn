@@ -1,9 +1,9 @@
 open Owl
-open Hdf5_caml
 
 open CGraph.Graph
-
 module N = Dense.Ndarray.Generic
+
+open Hdf5_caml
 
 let filename = "mask_rcnn_coco_owl.hdf5"
 let out_name = Configuration.weight_file

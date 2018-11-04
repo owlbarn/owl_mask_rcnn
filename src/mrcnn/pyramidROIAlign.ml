@@ -4,12 +4,18 @@ module N = Dense.Ndarray.S
 
 module C = Configuration
 
-(* *** ROIAlign Layer *** *)
+(* *** ROIAlign Layer ***
+ * Resizes all regions of interest from feature maps to a fixed size. *)
 
+(* pool_shape: (pool_height, pool_width) of the output pool regions.
+ * Returns: Pooled regions with shape
+ * [batch_size, num_boxes, pool_height, pool_width, channels]. *)
 let pyramid_roi_align pool_shape = fun inputs ->
   (* [batch, N, [y1, x1, y2, x2]] *)
   let boxes = inputs.(0) in
+  (* [batch, (image data)] *)
   let image_meta = inputs.(1) in
+  (* Different levels of feature maps from the backbone network. *)
   let feature_maps = Array.sub inputs 2 4 in
 
   let y1, x1, y2, x2 =
@@ -31,10 +37,9 @@ let pyramid_roi_align pool_shape = fun inputs ->
   and box_to_level = ref [] in
   for level = 2 to 5 do
     let i = level - 2 in
-    let ix = N.filteri_nd (fun _ x -> (int_of_float (x +. 1e-5)) = level)
+    let ix = N.filteri_nd (fun _ x -> int_of_float x = level)
                roi_level in
     if Array.length ix > 0 then (
-      (* Would set_slice be more efficient? *)
       let level_boxes = N.init_nd [|Array.length ix; 4|]
                           (fun t -> N.get boxes [|0; ix.(t.(0)).(1); t.(1)|]) in
       box_to_level := ix :: !box_to_level;
@@ -46,7 +51,7 @@ let pyramid_roi_align pool_shape = fun inputs ->
     )
   done;
 
-  (* Rearrange pooled in the original order *)
+  (* Rearranges pooled in the original order. *)
   let box_to_level =
     let tmp = Array.concat (List.rev !box_to_level) in
     let level_i = Array.init (Array.length tmp) (fun i -> (tmp.(i).(1), i)) in

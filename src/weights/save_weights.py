@@ -1,5 +1,7 @@
 import h5py
 
+# Converts Keras weight into a format easily readable by hdf5-caml.
+
 fname = "mask_rcnn_coco.h5"
 dfname = "mask_rcnn_coco_owl.hdf5"
 
