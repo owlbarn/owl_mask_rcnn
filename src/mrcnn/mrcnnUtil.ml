@@ -2,6 +2,7 @@ open Owl
 module N = Dense.Ndarray.S
 module C = Configuration
 
+
 let class_names =
   [|"BG"; "person"; "bicycle"; "car"; "motorcycle"; "airplane";
     "bus"; "train"; "truck"; "boat"; "traffic light";
@@ -19,34 +20,43 @@ let class_names =
     "sink"; "refrigerator"; "book"; "clock"; "vase"; "scissors";
     "teddy bear"; "hair drier"; "toothbrush"|]
 
+
 let print_array arr =
   Printf.printf "[| ";
   Array.iter (fun i -> Printf.printf "%d " i) arr;
   Printf.printf "|]\n%!"
+
 
 let print_array_float arr =
   Printf.printf "[| ";
   Array.iter (fun i -> Printf.printf "%0.3f " i) arr;
   Printf.printf "|]\n%!"
 
+
 let comp2 (a, b) (c, d) =
   match compare a c with
   | 0 -> compare b d
   | x -> x
 
+
 let gather_arr arr ix =
   Array.init (Array.length ix) (fun i -> arr.(ix.(i)))
+
 
 let gather_elts t ix =
   Array.init (Array.length ix) (fun i -> N.get t ix.(i))
 
+
 let gather_elts_nd t ix =
   N.init [|Array.length ix|] (fun i -> N.get t ix.(i))
+
 
 let gather_elts_nd_arr t ix =
   N.init [|Array.length ix|] (fun i -> N.get t [|ix.(i)|])
 
+
 let empty_lists n = List.init n (fun _ -> [])
+
 
 let gather_slice ?(axis=0) t ix =
   let dim = N.num_dims t in
@@ -62,6 +72,7 @@ let gather_slice ?(axis=0) t ix =
     N.empty sh
   )
 
+
 let init_slice ?(axis=0) shape slice =
   let dim = Array.length shape in
   let result = N.empty shape in
@@ -73,16 +84,19 @@ let init_slice ?(axis=0) shape slice =
   done;
   result
 
+
 let select_indices n cond =
   let rec loop i acc =
       if i >= n then List.rev acc
       else loop (i + 1) (if cond i then (i :: acc) else acc) in
   Array.of_list (loop 0 [])
 
+
 let unique_ids ids =
   let bitset = Array.make C.num_classes 0 in
   Array.iter (fun id -> bitset.(id) <- 1) ids;
   select_indices C.num_classes (fun i -> bitset.(i) = 1)
+
 
 (* Similar to Keras' TimeDistributed.*)
 let time_distributed neuron input_node =
@@ -106,17 +120,21 @@ let time_distributed neuron input_node =
       let final_shape = Array.append [|batch_size|] output_shape in
       Maths.reshape t.(0) final_shape) [|x|]
 
+
 let pack t =
   CGraph.Engine.pack_arr t
   |> CGraph.AD.pack_arr
+
 
 let unpack t =
   CGraph.AD.unpack_arr t
   |> CGraph.Engine.unpack_arr
 
+
 (* let delay_lambda ?name f t =
   CGraph.Graph.lambda ?name (fun t ->
       CGraph.AD.pack_arr (CGraph.M.delay f (CGraph.AD.unpack_arr t))) t *)
+
 
 let delay_lambda_array ?name shape f t =
   let exp_shape = Array.append [|1|] shape in
