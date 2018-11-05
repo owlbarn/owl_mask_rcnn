@@ -3,6 +3,7 @@ module N = Dense.Ndarray.S
 module C = Configuration
 
 
+(* Names of the 80 classes of the MS Coco dataset. *)
 let class_names =
   [|"BG"; "person"; "bicycle"; "car"; "motorcycle"; "airplane";
     "bus"; "train"; "truck"; "boat"; "traffic light";
@@ -39,25 +40,32 @@ let comp2 (a, b) (c, d) =
   | x -> x
 
 
+(* Returns an array with selected indices ix from array arr. *)
 let gather_arr arr ix =
   Array.init (Array.length ix) (fun i -> arr.(ix.(i)))
 
 
+(* Returns an array with selected nd-indices ix from ndarray t. *)
 let gather_elts t ix =
   Array.init (Array.length ix) (fun i -> N.get t ix.(i))
 
 
+(* Returns an Ndarray with selected nd-indices ix from ndarray t. *)
 let gather_elts_nd t ix =
   N.init [|Array.length ix|] (fun i -> N.get t ix.(i))
 
 
+(* Returns an Ndarray with selected indices ix from ndarray t. *)
 let gather_elts_nd_arr t ix =
   N.init [|Array.length ix|] (fun i -> N.get t [|ix.(i)|])
 
 
+(* Returns a list containing n empty lists (used for slicing). *)
 let empty_lists n = List.init n (fun _ -> [])
 
 
+(* Returns an Ndarray containing the selected slices with indices ix,
+ * along the specified axis. *)
 let gather_slice ?(axis=0) t ix =
   let dim = N.num_dims t in
   let first = empty_lists axis
@@ -73,6 +81,8 @@ let gather_slice ?(axis=0) t ix =
   )
 
 
+(* Creates an Ndarray with each slice initialised using the
+ * slice: (int -> arr) function. *)
 let init_slice ?(axis=0) shape slice =
   let dim = Array.length shape in
   let result = N.empty shape in
@@ -85,6 +95,8 @@ let init_slice ?(axis=0) shape slice =
   result
 
 
+(* Returns an array containing the indices between 0 and n - 1 satisfying
+ * [cond i]. *)
 let select_indices n cond =
   let rec loop i acc =
       if i >= n then List.rev acc
@@ -92,10 +104,11 @@ let select_indices n cond =
   Array.of_list (loop 0 [])
 
 
+(* Returns the unique elements from ids. *)
 let unique_ids ids =
-  let bitset = Array.make C.num_classes 0 in
-  Array.iter (fun id -> bitset.(id) <- 1) ids;
-  select_indices C.num_classes (fun i -> bitset.(i) = 1)
+  let bitset = Array.make C.num_classes false in
+  Array.iter (fun id -> bitset.(id) <- true) ids;
+  select_indices C.num_classes (fun i -> bitset.(i))
 
 
 (* Similar to Keras' TimeDistributed.*)
@@ -131,11 +144,8 @@ let unpack t =
   |> CGraph.Engine.unpack_arr
 
 
-(* let delay_lambda ?name f t =
-  CGraph.Graph.lambda ?name (fun t ->
-      CGraph.AD.pack_arr (CGraph.M.delay f (CGraph.AD.unpack_arr t))) t *)
-
-
+(* Uses the LambdaArray node with a custom function defined with eager
+ * evaluation. *)
 let delay_lambda_array ?name shape f t =
   let exp_shape = Array.append [|1|] shape in
   CGraph.Graph.lambda_array ?name shape (fun t ->

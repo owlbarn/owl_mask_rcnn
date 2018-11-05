@@ -23,12 +23,10 @@ let add_rgb img rgb =
   img
 
 
-(* Recommended preprocessing for ResNet. *)
 let preprocess img =
   add_rgb img (Array.map (~-.) C.mean_pixel)
 
 
-(* Converts the colours back to normal after preprocessing for ResNet. *)
 let postprocess img =
   add_rgb img C.mean_pixel
 
@@ -37,7 +35,6 @@ let save dest format img =
   Images.save dest (Some format) [] img
 
 
-(* Converts an Ndarray to a Camlimages' Image. *)
 let img_of_ndarray arr =
   let shape = N.shape arr in
   assert ((Array.length shape) = 3 && shape.(2) = 3);
@@ -52,6 +49,7 @@ let img_of_ndarray arr =
   Images.Rgb24 img
 
 
+(* Converts a Camlimages' image to an Ndarray. *)
 let camlimg_to_ndarray img =
   let w, h = Images.size img in
   let img_rgb = match img with
@@ -69,17 +67,11 @@ let camlimg_to_ndarray img =
   res
 
 
-(* Transforms an image file to an Ndarray of dimensions [H, W, 3]. Only
- * supports RGB24 image formats. *)
 let img_to_ndarray src =
   let img = Images.load src [] in
   camlimg_to_ndarray img
 
 
-(* Converts the file src to an Ndarray of colors RGB and resize it to [h, w]
- * size. Keeps the original scale and pads with 0's if necessary.
- * Return the resized image, its shape, the position of the image inside the
- * array (excluding the padding) and the scale of the resizing. *)
 let resize ?h ?w src =
   let img = Images.load src [] in
   let img_w, img_h = Images.size img in
@@ -114,8 +106,6 @@ type image_meta = {
   }
 
 
-(* Parse information about the image as a sequential Ndarray and returns an
- * image_meta type. Assume a batch size of 1. *)
 let parse_image_meta meta =
   let open N in
   { image_id             = int_of_float (meta.%{[|0;0|]});
@@ -145,23 +135,17 @@ let compose_image_meta image_id original_shape image_shape window scale =
   meta
 
 
-(* Processes an image file to be Mask R-CNN ready. Return the processed image,
- * information about the resizing and the position of the image inside the
- * Ndarray. *)
 let mold_inputs src =
   let h, w =
     let shape = C.get_image_shape () in
     shape.(0), shape.(1) in
-  let molded_image, original_shape, window, scale = resize ~w ~h src in
+  let molded_image, original_shape, window, scale = resize ~h ~w src in
   let processed_image = preprocess molded_image in
   let image_meta = compose_image_meta 0 original_shape
                      (N.shape processed_image) window scale in
   processed_image, image_meta, window
 
 
-(* Applies the deltas to the boxes.
- * Boxes: [N, [y1, x1, y2, x2]],
- * Deltas: [N, [dx, dy, log(dh), log(dy)]]. *)
 let apply_box_deltas boxes deltas =
   let open N in
   (* Convert to [y, x, h, w] *)
@@ -187,13 +171,11 @@ let apply_box_deltas boxes deltas =
   result
 
 
-(* Clips boxes to image boundaries.
- * Boxes: [N, [y1, x1, y2, x2]], window: [y1, x1, y2, x2]. *)
 let clip_boxes boxes window =
   let open N in
   let edges = split [|1; 1; 1; 1|] window in
   let cols = split ~axis:1 [|1; 1; 1; 1|] boxes in
-  (* relies on the broadcast operation *)
+  (* relies on broadcasting *)
   min2_ cols.(0) edges.(2); max2_ cols.(0) edges.(0);
   min2_ cols.(1) edges.(3); max2_ cols.(1) edges.(1);
   min2_ cols.(2) edges.(2); max2_ cols.(2) edges.(0);
@@ -204,16 +186,12 @@ let clip_boxes boxes window =
 let _shift = N.of_array [|0.; 0.; 1.; 1.|] [|4|]
 
 
-(* Converts boxes from pixel coordinates to normalised coordinates.
- * boxes: [N, (y1, x1, y2, x2)],
- * shape: (h, w). *)
 let norm_boxes boxes shape =
   let h, w = float shape.(0), float shape.(1) in
   let scale = N.of_array [|h; w; h; w|] [|4|] in N.sub_scalar_ scale 1.;
   N.((boxes - _shift) / scale)
 
 
-(* Inverse operation of norm_boxes. *)
 let denorm_boxes boxes shape =
   let h, w = float shape.(0), float shape.(1) in
   let scale = N.of_array [|h; w; h; w|] [|4|] in N.sub_scalar_ scale 1.;
@@ -224,9 +202,6 @@ let denorm_boxes boxes shape =
 let area box = (box.(2) -. box.(0)) *. (box.(3) -. box.(1))
 
 
-(* Returns the area of the intersection of box1 and box2 divided by the area of
- * their union. Used to avoid selecting the same region of interest multiple
- * times with overlapping bounding boxes. *)
 let intersection_over_union box1 box2 =
   let y1 = max box1.(0) box2.(0) in
   let x1 = max box1.(1) box2.(1) in
@@ -237,12 +212,7 @@ let intersection_over_union box1 box2 =
   inter_area /. (area1 +. area2 -. inter_area +. 1e-5)
 
 
-(* Greedily selects the indices of the boxes with the highest score that don't
- * have an intersection over union greater than iou_threshold with each
- * other. Takes at most max_output_size boxes.
- * boxes: [N, (y1, x1, y2, x2)],
- * scores: [N].
- * TODO is it possible to use vectorised ops to speed up the computation? *)
+(* TODO is it possible to use vectorised ops to speed up the computation? *)
 let non_max_suppression boxes scores max_output_size iou_threshold =
   let n = (N.shape boxes).(0) in
   assert (n = (N.shape scores).(0));
@@ -272,10 +242,9 @@ let non_max_suppression boxes scores max_output_size iou_threshold =
   Array.map (fun i -> ixs.(i)) (Array.sub selected 0 !size)
 
 
-(* Crops box from image and resizes it to shape.
- * box: (y1, x1, y2, x2),
- * image: [H, W, D],
- * shape: (H, W, D). *)
+(* [crop_and_resize_box image box shape] crops [box] from [image] and resizes
+ * it to [shape]. See [crop_and_resize] for more information.
+ * [box]: (y1, x1, y2, x2), [image]: [H, W, D], [shape]: (H, W, D). *)
 let crop_and_resize_box ?out ?(extrapolation_value=0.) image box shape =
   let y1, x1, y2, x2 = box.(0), box.(1), box.(2), box.(3) in
   let img_h, img_w, dep = let sh = (N.shape image) in sh.(0), sh.(1), sh.(2) in
@@ -333,13 +302,6 @@ let crop_and_resize_box ?out ?(extrapolation_value=0.) image box shape =
   result
 
 
-(* For each box in boxes, crops the box out of the image and resizes it to
- * crop_shape using bilinear interpolation.
- * The boxes should be in normalised coordinates.
- * Returns a tensor of shape
- * [num_boxes, crop_shape.(0), crop_shape.(1), depth].
- * Algorithm ported from https://github.com/tensorflow/tensorflow/blob/
- * master/tensorflow/core/kernels/crop_and_resize_op.cc#L202. *)
 let crop_and_resize image boxes crop_shape =
   let n, d = (N.shape boxes).(0), (N.shape image).(2) in
   let results = N.empty Array.(append (append [|n|] crop_shape) [|d|]) in
@@ -407,7 +369,6 @@ let get_anchors image_shape =
   norm_boxes anchors image_shape
 
 
-(* Converts a mask generated by Mask R-CNN to its format on the image. *)
 let unmold_mask mask box =
   let threshold = 0.5 in
   let y1, x1, y2, x2 =
@@ -421,12 +382,6 @@ let unmold_mask mask box =
   mask, y1, x1, y2, x2
 
 
-(* Reformats the results of the neural network in a more suitable format.
- * detections: [N, [y1, x1, y2, x2, class_id, score]],
- * mrcnn_mask: [N, height, width, num_classes],
- * original_image_shape: [H, W, C],
- * image_shape: [H, W, C],
- * window: (y1, x1, y2, x2). *)
 let unmold_detections detections mrcnn_mask original_image_shape image_shape
       window =
   (* Finds number of detections (detections is padded with zero but when valid,

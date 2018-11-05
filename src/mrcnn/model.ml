@@ -95,7 +95,7 @@ let mrcnn num_anchors =
                           (fun t -> Maths.get_slice [[]; []; [0;3]] t.(0))
                           [|detections|] in
 
-  (* Generate low resolution masks for each detected object. *)
+  (* Generates low resolution masks for each detected object. *)
   let mrcnn_mask = FPN.build_fpn_mask_graph detection_boxes mrcnn_feature_maps
                      input_image_meta C.mask_pool_size C.num_classes in
 
@@ -112,6 +112,7 @@ type results = {
   }
 
 
+(* Transforms the outputs of the network in an easily understandable format. *)
 let extract_features detections mrcnn_masks image_meta =
   let meta = Image.parse_image_meta (N.expand image_meta 2) in
   let rois, class_ids, scores, masks =

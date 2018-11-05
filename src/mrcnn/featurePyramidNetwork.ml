@@ -18,7 +18,7 @@ module C = Configuration
  * fc_layers_size: size of the fully connected layers.
  * Returns:
  * mrcnn_probs: [batch, number of ROIs, number of classes]
- * mrcnn_bbox: [batch, number of ROIs, num classes, (dx, dy, log(dh), log(dw)]
+ * mrcnn_bbox: [batch, number of ROIs, num classes, (dx, dy, log(dh), log(dw))]
  *             further bounding box refinement for each class. *)
 let fpn_classifier_graph rois feature_maps meta
       pool_size num_classes fc_layers_size =
