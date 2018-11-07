@@ -6,7 +6,7 @@ module N = Dense.Ndarray.S
 let apply_mask img mask_xy colour =
   let mask, y1, x1, y2, x2 = mask_xy in
   let mask = N.expand ~hi:true mask 3 in
-  let alpha = 0.5 in
+  let alpha = 0.4 in
   for k = 0 to 2 do
     let slice = [[y1; y2 - 1]; [x1; x2 - 1]; [k]] in
     let rect = N.get_slice slice img in
@@ -19,7 +19,7 @@ let apply_mask img mask_xy colour =
   done
 
 
-let rnd_char () = float_of_int ((Random.int 180) + 10)
+let rnd_char () = float_of_int ((Random.int 160) + 30)
 
 
 let random_colour () = [|rnd_char (); rnd_char (); rnd_char ()|]
@@ -58,16 +58,17 @@ let draw_box img box colour =
   draw_ver_segment img x2 y1 y2 colour
 
 
-let draw_contour img mask_xy colour =
+let draw_contour ?(width=2) img mask_xy colour =
   let mask, y1, x1, y2, x2 = mask_xy in
   let ym, xm = y2 - 1, x2 - 1 in
   let is_contour y x =
     if N.get mask [|y - y1; x - x1|] = 0. then false
-    else if y <= y1 + 1 || x <= x1 + 1 || y >= ym - 1 || x >= xm - 1 then true
+    else if y <= y1 + width - 1 || x <= x1 + width - 1 ||
+              y >= ym - width + 1 || x >= xm - width + 1 then true
     else
       let contour = ref false in
-      for i = y - 2 to y + 2 do
-        for j = x - 2 to x + 2 do
+      for i = y - width to y + width do
+        for j = x - width to x + width do
           contour := !contour || N.get mask [|i - y1; j - x1|] = 0.;
         done;
       done;
@@ -77,7 +78,7 @@ let draw_contour img mask_xy colour =
     for j = x1 to xm do
       if is_contour i j then
         for k = 0 to 2 do
-        N.set img [|i; j; k|] colour.(k);
+          N.set img [|i; j; k|] (min 255. (colour.(k) +. 30.));
         done;
     done;
   done
@@ -104,8 +105,8 @@ let display_masks ?(random_col=true) img boxes masks class_ids =
       )
     in
     apply_mask img mask colour;
-    draw_contour img mask colour;
     draw_box img box colour;
+    draw_contour img mask colour;
   done
 
 

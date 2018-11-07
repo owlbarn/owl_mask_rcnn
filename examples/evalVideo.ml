@@ -1,8 +1,15 @@
 (* Performs object detection on each frame of a video and returns new video with
- * masks. *)
+ * masks. Requires FFMpeg. *)
 open Mrcnn
 
+(* Location of the video to convert. *)
 let video_file = "data/vids/video.mp4"
+
+(* Your image will be resized to a square of this dimension before being fed
+ * to the network. It has to be a multiple of 64. A larger size means a more
+ * accurate result but more time and memory to process. *)
+let () = Configuration.set_image_size 768
+
 
 (* The next two functions are taken from
  * https://discuss.ocaml.org/t/how-to-create-a-temporary-directory-in-ocaml/
@@ -10,6 +17,7 @@ let video_file = "data/vids/video.mp4"
 let rand_digits () =
   let rand = Random.State.(bits (make_self_init ()) land 0xFFFFFF) in
   Printf.sprintf "%06x" rand
+
 
 let mk_temp_dir ?(mode=0o700) pat =
   let dir = Filename.get_temp_dir_name () in
@@ -25,15 +33,19 @@ let mk_temp_dir ?(mode=0o700) pat =
   in
   loop 1000
 
+
 let tmp_dir = mk_temp_dir "mrcnn_vid"
 let img_file = tmp_dir ^ "/frame%04d.jpg"
 let out_file = (Filename.dirname video_file) ^
                  "/output_" ^
                    (Filename.basename video_file)
 
+
 let fun_detect = Model.detect ()
 
+
 let cnt = ref 0
+
 
 let eval_img src =
   cnt := !cnt + 1;
@@ -45,6 +57,7 @@ let eval_img src =
     Visualise.display_masks ~random_col:false img_arr rois masks class_ids;
     Image.save src Images.Jpeg (Image.img_of_ndarray img_arr)
 
+
 let () =
   Owl_log.info
     "This script splits a complete video into frames and processes all the \
@@ -54,5 +67,5 @@ let () =
   in
   let _ = Sys.command(split_cmd) in
   Array.iter (fun d -> eval_img (tmp_dir ^ "/" ^ d)) (Sys.readdir tmp_dir);
-  let gather_cmd = "ffmpeg -framerate 30 -i " ^ img_file ^ " " ^ out_file in
+  let gather_cmd = "ffmpeg -framerate 25 -i " ^ img_file ^ " " ^ out_file in
   Sys.command(gather_cmd) |> ignore

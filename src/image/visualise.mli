@@ -11,7 +11,8 @@ val draw_box : N.arr -> N.arr -> float array -> unit
 (** [draw_box img box colour] draws a rectangle [box] of the specified [colour]
  ** on [img].*)
 
-val draw_contour : N.arr -> N.arr * int * int * int * int -> float array -> unit
+val draw_contour : ?width:int -> N.arr -> N.arr * int * int * int * int
+                   -> float array -> unit
 (** [draw_contour img mask_xy colour] finds the edges of the mask and highlights
  ** them on [img] with the specified [colour]. *)
 
