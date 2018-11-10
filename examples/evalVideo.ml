@@ -2,8 +2,9 @@
  * masks. Requires FFMpeg. *)
 open Mrcnn
 
-(* Location of the video to convert. *)
+(* Location of the video to convert and its framerate. *)
 let video_file = "data/vids/video.mp4"
+let framerate = 25
 
 (* Your image will be resized to a square of this dimension before being fed
  * to the network. It has to be a multiple of 64. A larger size means a more
@@ -67,5 +68,7 @@ let () =
   in
   let _ = Sys.command(split_cmd) in
   Array.iter (fun d -> eval_img (tmp_dir ^ "/" ^ d)) (Sys.readdir tmp_dir);
-  let gather_cmd = "ffmpeg -framerate 25 -i " ^ img_file ^ " " ^ out_file in
+  let fr = string_of_int framerate in
+  let gather_cmd = "ffmpeg -framerate " ^ fr ^ " -i "
+                   ^ img_file ^ " " ^ out_file in
   Sys.command(gather_cmd) |> ignore

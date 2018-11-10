@@ -46,10 +46,10 @@ let () =
       Printf.printf "No objects detected on the picture.\n"
     else (
       let img_arr = Image.img_to_ndarray src in
-      let filename = Filename.basename src in
+      let filename = Filename.basename src |> Filename.remove_extension in
       (* add the bounding boxes and the masks to the picture *)
       Visualise.display_masks img_arr rois masks class_ids;
-      let out_loc = out ^ filename in
+      let out_loc = out ^ filename ^ ".jpg" in
       Image.save out_loc Images.Jpeg (Image.img_of_ndarray img_arr);
       Owl_log.info "Output picture written to %s." out_loc;
       (* display classes, confidence and position *)
