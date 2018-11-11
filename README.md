@@ -4,7 +4,7 @@ This is an implementation of the Mask R-CNN network using OCaml's numerical libr
 
 ## Prerequisites
 - OCaml `>=4.06.0`
-- CamlImages (`opam install camlimages`)
+- CamlImages (`opam install camlimages`). Note that you need to install it after installing the following packages `libpng12-dev libjpeg-dev libtiff-dev libxpm-dev libfreetype6-dev libgif-dev` to make it support the image format you are interested in.
 - [Owl's **master branch**](https://github.com/owlbarn/owl) (make sure it is up-to-date)
 - You need pre-trained weights to run the inference mode of the network. You can directly download the Owl weights **[here](https://drive.google.com/open?id=1MTnjFeSNB3Xuh471Lnk0iK-90AzTXf8k)** and place them at the root of the directory (they are converted from the Keras weights that can be found [here](https://github.com/matterport/Mask_RCNN/releases)).
 - You can then `make` and `make run`!
