@@ -65,7 +65,7 @@ let detection_max_instances = 100
 
 (* Only keeps objects whose detection confidence is higher that this value.
  * You can decrease it if you want to detect more objects. *)
-let detection_min_confidence = 0.7
+let detection_min_confidence = 0.75
 
 (* Same as the previous field but used as a first skimming. *)
 let detection_nms_threshold = 0.3

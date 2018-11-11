@@ -49,8 +49,12 @@ let () =
       let filename = Filename.basename src |> Filename.remove_extension in
       (* add the bounding boxes and the masks to the picture *)
       Visualise.display_masks img_arr rois masks class_ids;
-      let out_loc = out ^ filename ^ ".jpg" in
-      Image.save out_loc Images.Jpeg (Image.img_of_ndarray img_arr);
+      let format = Images.guess_format src in
+      let ext = Images.extension format in
+      let out_loc = out ^ filename ^ "." ^ ext in
+      let camlimg = Image.img_of_ndarray img_arr in
+      Visualise.display_labels camlimg rois class_ids scores;
+      Image.save out_loc format camlimg;
       Owl_log.info "Output picture written to %s." out_loc;
       (* display classes, confidence and position *)
       Visualise.print_results class_ids rois scores

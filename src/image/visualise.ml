@@ -84,6 +84,35 @@ let draw_contour ?(width=2) img mask_xy colour =
   done
 
 
+let draw_text =
+  let face = new OFreetype.face "FreeMonoBold.ttf" 0 in
+  fun img box text ->
+  let y1, x1 = N.(int_of_float box.%{[|0|]}, int_of_float box.%{[|1|]}) in
+  let text = Fttext.unicode_of_latin text in
+  let size = max ((max img#width img#height) / 120 + 1) 10 in
+  face#set_char_size 100. 100. size size;
+  OFreetype.draw_text face (fun org level ->
+      let level' = 255 - level in
+      Images.{ r = (org.r * level' + 255 * level) / 255;
+               g = (org.g * level' + 255 * level) / 255;
+               b = (org.b * level' + 255 * level) / 255 }) img x1 y1 text
+
+
+let display_labels img boxes class_ids scores =
+  let img = match img with
+    | Images.Rgb24 img -> img
+    | _ -> failwith "not implemented format"
+  in
+  let n = (N.shape boxes).(0) in
+  let img24 = new OImages.rgb24_wrapper img in
+  for i = 0 to n - 1 do
+    let box = N.(get_slice [[i];[]] boxes |> squeeze ~axis:[|0|]) in
+    let text = Printf.sprintf "%s %.2f" MrcnnUtil.class_names.(class_ids.(i))
+                 (N.get scores [|i|]) in
+    draw_text (img24 :> Color.rgb OImages.map) box text;
+  done
+
+
 (* Stores the colour used for each class. *)
 let col_by_class : (int, float array) Hashtbl.t = Hashtbl.create 5
 

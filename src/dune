@@ -9,6 +9,7 @@
   (libraries
      owl
      camlimages.all_formats
+     camlimages.freetype
      ; hdf5_caml
      )
   )

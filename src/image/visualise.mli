@@ -16,6 +16,11 @@ val draw_contour : ?width:int -> N.arr -> N.arr * int * int * int * int
 (** [draw_contour img mask_xy colour] finds the edges of the mask and highlights
  ** them on [img] with the specified [colour]. *)
 
+val display_labels : Images.t -> N.arr -> int array -> N.arr -> unit
+(** [display_labels img boxes class_ids scores] writes the name of the class
+ ** of each detected object on [img], along with the confidence [scores] of the
+ ** detection. *)
+
 val display_masks : ?random_col:bool -> N.arr -> N.arr
                     -> (int -> N.arr * int * int * int * int)
                     -> int array -> unit
