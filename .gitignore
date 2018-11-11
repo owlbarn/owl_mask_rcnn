@@ -11,7 +11,7 @@ current_network.txt
 data/*
 !data/examples/
 results/*
-!results/output_1536.jpg
+!results/buildings_1536.jpg
 *.txt
 debug*
 massif.*

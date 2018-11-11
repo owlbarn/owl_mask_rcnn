@@ -10,7 +10,7 @@ This is an implementation of the Mask R-CNN network using OCaml's numerical libr
 - You can then `make` and `make run`!
 
 ## Images
-![Image](https://github.com/pvdhove/owl-mask-rcnn/blob/master/results/output_1536.jpg)
+![Image](https://github.com/pvdhove/owl-mask-rcnn/blob/master/results/buildings_1536.jpg)
 The code `evalImage.ml` from the examples can be used to classify all the pictures in a given folder. It can be compiled with `make` and run with `make run`. A new image with highlighted objects will be generated to the `results/` folder. You can modify the location of the source directory/file in `examples/evalImage.ml`, as well as the size of the image: a larger size yields a more accurate detection but needs more time and memory (default is 768, but you can try 512, 1024, 1536, 2048,...).
 
 ## Videos
