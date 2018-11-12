@@ -46,12 +46,11 @@ let () =
       Printf.printf "No objects detected on the picture.\n"
     else (
       let img_arr = Image.img_to_ndarray src in
-      let filename = Filename.basename src |> Filename.remove_extension in
+      let filename = Filename.basename src in
+      let format = Images.guess_format src in
+      let out_loc = out ^ filename in
       (* add the bounding boxes and the masks to the picture *)
       Visualise.display_masks img_arr rois masks class_ids;
-      let format = Images.guess_format src in
-      let ext = Images.extension format in
-      let out_loc = out ^ filename ^ "." ^ ext in
       let camlimg = Image.img_of_ndarray img_arr in
       Visualise.display_labels camlimg rois class_ids scores;
       Image.save out_loc format camlimg;
