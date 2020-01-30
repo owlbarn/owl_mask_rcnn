@@ -1,6 +1,4 @@
-open Owl
-
-module M = Owl_computation_cpu_engine.Make (Dense.Ndarray.S)
+module M = Owl_computation_cpu_engine.Make (Owl_algodiff_primal_ops.S)
 module Compiler = Owl_neural_compiler.Make (M)
 
 module Neural = Compiler.Neural
